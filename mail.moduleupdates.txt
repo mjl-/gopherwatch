@@ -1,0 +1,21 @@
+Hi!
+
+New modules/versions appeared that match your subscriptions:
+{{ range $mv := .ModuleVersions }}
+- {{ $mv.Module }},{{ range $v := $mv.Versions }} {{ $v.Version }}{{ end }}
+{{- end -}}
+
+{{- if .UpdatesTruncated }}
+More than 1000 modules had matching updates, results have been truncated. Caused
+either after a (longer) outage or by subscriptions that match many modules.
+{{ end }}
+
+Change subscriptions (link valid for 24 hours):
+
+        {{ .BaseURL }}/#login/{{ .LoginToken }}
+
+Cheers,
+GopherWatch
+
+--
+Unsubscribe: {{ .BaseURL }}/unsubscribe?id={{ .User.UpdatesUnsubscribeToken }}

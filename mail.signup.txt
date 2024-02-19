@@ -1,0 +1,14 @@
+Hi!
+
+We received a signup request for your email address, please confirm your request
+for an account:
+
+	{{ .BaseURL }}/#verifysignup/{{ .User.VerifyToken }}
+
+If you didn't signup, you can ignore this message.
+
+Cheers,
+GopherWatch
+
+--
+Unsubscribe: {{ .BaseURL }}/unsubscribe?id={{ .User.MetaUnsubscribeToken }}

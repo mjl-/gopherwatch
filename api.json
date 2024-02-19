@@ -1,0 +1,850 @@
+{
+	"Name": "API",
+	"Docs": "API holds functions for the frontend.",
+	"Functions": [
+		{
+			"Name": "Signup",
+			"Docs": "Signup registers a new account. We send an email for users to verify they\ncontrol the email address. If we already have a verified account, we send a\npassword reset instead.",
+			"Params": [
+				{
+					"Name": "email",
+					"Typewords": [
+						"string"
+					]
+				}
+			],
+			"Returns": []
+		},
+		{
+			"Name": "SignupEmail",
+			"Docs": "SignupEmail returns the email address for a verify token. So we can show it, and\nthe user can get prompted for saving full full login credentials by a password\nmanager after verifying the signup.",
+			"Params": [
+				{
+					"Name": "prepToken",
+					"Typewords": [
+						"string"
+					]
+				},
+				{
+					"Name": "verifyToken",
+					"Typewords": [
+						"string"
+					]
+				}
+			],
+			"Returns": [
+				{
+					"Name": "email",
+					"Typewords": [
+						"string"
+					]
+				}
+			]
+		},
+		{
+			"Name": "VerifySignup",
+			"Docs": "VerifySignup verifies a new account by checking the token. The token was in the\nURL in the signup email.",
+			"Params": [
+				{
+					"Name": "prepToken",
+					"Typewords": [
+						"string"
+					]
+				},
+				{
+					"Name": "verifyToken",
+					"Typewords": [
+						"string"
+					]
+				},
+				{
+					"Name": "email",
+					"Typewords": [
+						"string"
+					]
+				},
+				{
+					"Name": "password",
+					"Typewords": [
+						"string"
+					]
+				}
+			],
+			"Returns": [
+				{
+					"Name": "csrfToken",
+					"Typewords": [
+						"string"
+					]
+				}
+			]
+		},
+		{
+			"Name": "UserRemove",
+			"Docs": "UserRemove lets a user remove their account.",
+			"Params": [],
+			"Returns": []
+		},
+		{
+			"Name": "Redeem",
+			"Docs": "Redeem turns a login token, as used in login-links in notification emails, into\na session by returning a csrf token and setting a session cookie.",
+			"Params": [
+				{
+					"Name": "prepToken",
+					"Typewords": [
+						"string"
+					]
+				},
+				{
+					"Name": "loginToken",
+					"Typewords": [
+						"string"
+					]
+				}
+			],
+			"Returns": [
+				{
+					"Name": "csrfToken",
+					"Typewords": [
+						"string"
+					]
+				}
+			]
+		},
+		{
+			"Name": "RequestPasswordReset",
+			"Docs": "RequestPasswordReset requests a password reset. We send an email with a link\nwith a password reset token.",
+			"Params": [
+				{
+					"Name": "prepToken",
+					"Typewords": [
+						"string"
+					]
+				},
+				{
+					"Name": "email",
+					"Typewords": [
+						"string"
+					]
+				}
+			],
+			"Returns": []
+		},
+		{
+			"Name": "ResetPassword",
+			"Docs": "ResetPassword resets a password for an account based on a token.",
+			"Params": [
+				{
+					"Name": "prepToken",
+					"Typewords": [
+						"string"
+					]
+				},
+				{
+					"Name": "email",
+					"Typewords": [
+						"string"
+					]
+				},
+				{
+					"Name": "password",
+					"Typewords": [
+						"string"
+					]
+				},
+				{
+					"Name": "resetToken",
+					"Typewords": [
+						"string"
+					]
+				}
+			],
+			"Returns": []
+		},
+		{
+			"Name": "Prep",
+			"Docs": "Prep helps prevent CSRF calls. It must be called before calling functions like\nLogin, Subscribe. It returns a token, which it also sets as a samesite cookie.\nThe subsequent call must pass in the token, and the request must have the cookie\nset.",
+			"Params": [],
+			"Returns": [
+				{
+					"Name": "prepToken",
+					"Typewords": [
+						"string"
+					]
+				}
+			]
+		},
+		{
+			"Name": "Login",
+			"Docs": "Login verifies the accounts password and creates a new session, returning a csrf\ntoken that must be present in an x-csrf header in subsequent calls. A same-site\ncookie is set too.",
+			"Params": [
+				{
+					"Name": "prepToken",
+					"Typewords": [
+						"string"
+					]
+				},
+				{
+					"Name": "email",
+					"Typewords": [
+						"string"
+					]
+				},
+				{
+					"Name": "password",
+					"Typewords": [
+						"string"
+					]
+				}
+			],
+			"Returns": [
+				{
+					"Name": "csrfToken",
+					"Typewords": [
+						"string"
+					]
+				}
+			]
+		},
+		{
+			"Name": "Logout",
+			"Docs": "Logout clears the session cookie. It does not invalidate the session.",
+			"Params": [],
+			"Returns": []
+		},
+		{
+			"Name": "Overview",
+			"Docs": "Overview returns data needed for the overview page, after logging in.",
+			"Params": [],
+			"Returns": [
+				{
+					"Name": "overview",
+					"Typewords": [
+						"Overview"
+					]
+				}
+			]
+		},
+		{
+			"Name": "SubscribeSet",
+			"Docs": "SubscribeSet changes either meta (service messages) or module updates\nsubscriptions. If not subscribed, no messages are sent.",
+			"Params": [
+				{
+					"Name": "meta",
+					"Typewords": [
+						"bool"
+					]
+				},
+				{
+					"Name": "subscribed",
+					"Typewords": [
+						"bool"
+					]
+				}
+			],
+			"Returns": []
+		},
+		{
+			"Name": "IntervalSet",
+			"Docs": "SetInterval sets a new minimum interval between update messages.",
+			"Params": [
+				{
+					"Name": "interval",
+					"Typewords": [
+						"Interval"
+					]
+				}
+			],
+			"Returns": []
+		},
+		{
+			"Name": "SubscriptionCreate",
+			"Docs": "SubscriptionCreate adds a new subscription to a module.",
+			"Params": [
+				{
+					"Name": "sub",
+					"Typewords": [
+						"Subscription"
+					]
+				}
+			],
+			"Returns": [
+				{
+					"Name": "r0",
+					"Typewords": [
+						"Subscription"
+					]
+				}
+			]
+		},
+		{
+			"Name": "SubscriptionImport",
+			"Docs": "SubscriptionImport parses a go.mod file and subscribes to all direct and\noptionally indirect dependencies.",
+			"Params": [
+				{
+					"Name": "imp",
+					"Typewords": [
+						"SubscriptionImport"
+					]
+				}
+			],
+			"Returns": [
+				{
+					"Name": "subs",
+					"Typewords": [
+						"[]",
+						"Subscription"
+					]
+				}
+			]
+		},
+		{
+			"Name": "SubscriptionSave",
+			"Docs": "SubscriptionSave updates an existing subscription to a module.",
+			"Params": [
+				{
+					"Name": "sub",
+					"Typewords": [
+						"Subscription"
+					]
+				}
+			],
+			"Returns": []
+		},
+		{
+			"Name": "SubscriptionRemove",
+			"Docs": "SubscriptionRemove removes an existing subscription.",
+			"Params": [
+				{
+					"Name": "subID",
+					"Typewords": [
+						"int64"
+					]
+				}
+			],
+			"Returns": []
+		},
+		{
+			"Name": "Home",
+			"Docs": "Home returns data for the home page.",
+			"Params": [],
+			"Returns": [
+				{
+					"Name": "home",
+					"Typewords": [
+						"Home"
+					]
+				}
+			]
+		},
+		{
+			"Name": "Recents",
+			"Docs": "Recents returns more recent packages, currently 150.",
+			"Params": [],
+			"Returns": [
+				{
+					"Name": "recents",
+					"Typewords": [
+						"[]",
+						"Recent"
+					]
+				}
+			]
+		},
+		{
+			"Name": "Forward",
+			"Docs": "Forward tries a bit harder to forward the transparency log. While we\nperiodically fetch the /latest database tree state and forward the log, at\nleast sum.golang.org only returns new values about once every 10 minutes.\nBut we can look at the latest additions to index.golang.org and get the most\nrecently added module from it, then look it up to gets the associated tree\nstate and forward based on that.",
+			"Params": [],
+			"Returns": []
+		},
+		{
+			"Name": "TestForward",
+			"Docs": "",
+			"Params": [],
+			"Returns": []
+		},
+		{
+			"Name": "TestSend",
+			"Docs": "",
+			"Params": [
+				{
+					"Name": "secret",
+					"Typewords": [
+						"string"
+					]
+				},
+				{
+					"Name": "kind",
+					"Typewords": [
+						"string"
+					]
+				},
+				{
+					"Name": "email",
+					"Typewords": [
+						"string"
+					]
+				}
+			],
+			"Returns": []
+		}
+	],
+	"Sections": [],
+	"Structs": [
+		{
+			"Name": "Overview",
+			"Docs": "",
+			"Fields": [
+				{
+					"Name": "Email",
+					"Docs": "From User",
+					"Typewords": [
+						"string"
+					]
+				},
+				{
+					"Name": "UpdateInterval",
+					"Docs": "",
+					"Typewords": [
+						"Interval"
+					]
+				},
+				{
+					"Name": "MetaUnsubscribed",
+					"Docs": "",
+					"Typewords": [
+						"bool"
+					]
+				},
+				{
+					"Name": "UpdatesUnsubscribed",
+					"Docs": "",
+					"Typewords": [
+						"bool"
+					]
+				},
+				{
+					"Name": "Backoff",
+					"Docs": "",
+					"Typewords": [
+						"string"
+					]
+				},
+				{
+					"Name": "BackoffUntil",
+					"Docs": "",
+					"Typewords": [
+						"timestamp"
+					]
+				},
+				{
+					"Name": "Subscriptions",
+					"Docs": "",
+					"Typewords": [
+						"[]",
+						"Subscription"
+					]
+				},
+				{
+					"Name": "ModuleUpdates",
+					"Docs": "",
+					"Typewords": [
+						"[]",
+						"ModuleUpdateURLs"
+					]
+				},
+				{
+					"Name": "UserLogs",
+					"Docs": "",
+					"Typewords": [
+						"[]",
+						"UserLog"
+					]
+				}
+			]
+		},
+		{
+			"Name": "Subscription",
+			"Docs": "Subscription to a module. New versions will cause an Update to be registered and sent.",
+			"Fields": [
+				{
+					"Name": "ID",
+					"Docs": "",
+					"Typewords": [
+						"int64"
+					]
+				},
+				{
+					"Name": "Module",
+					"Docs": "Full path to subscribe to, e.g. github.com/mjl-. The transparency log can have entries for various upper/lower case variants. Easiest to care only about the canonical name.",
+					"Typewords": [
+						"string"
+					]
+				},
+				{
+					"Name": "BelowModule",
+					"Docs": "If set, we also match module paths that are below the subscribed module.",
+					"Typewords": [
+						"bool"
+					]
+				},
+				{
+					"Name": "OlderVersions",
+					"Docs": "If set, we also send updates about added versions that are older than what seen previously. Can happen when multiple tags (versions) are pushed and old ones are fetched later.",
+					"Typewords": [
+						"bool"
+					]
+				},
+				{
+					"Name": "Prerelease",
+					"Docs": "No pre-release version, such as \"v1.2.3-rc1\", or \"v1.2.3-0.20240214164601-39bfa4338a12\".",
+					"Typewords": [
+						"bool"
+					]
+				},
+				{
+					"Name": "Pseudo",
+					"Docs": "No pseudo versions like \"v0.0.0-20240214164601-39bfa4338a12\".",
+					"Typewords": [
+						"bool"
+					]
+				},
+				{
+					"Name": "Comment",
+					"Docs": "Comment by user, to explain to future self why this is being monitored.",
+					"Typewords": [
+						"string"
+					]
+				}
+			]
+		},
+		{
+			"Name": "ModuleUpdateURLs",
+			"Docs": "",
+			"Fields": [
+				{
+					"Name": "ID",
+					"Docs": "",
+					"Typewords": [
+						"int64"
+					]
+				},
+				{
+					"Name": "UserID",
+					"Docs": "",
+					"Typewords": [
+						"int64"
+					]
+				},
+				{
+					"Name": "SubscriptionID",
+					"Docs": "No reference, subscriptions may be deleted.",
+					"Typewords": [
+						"int64"
+					]
+				},
+				{
+					"Name": "LogRecordID",
+					"Docs": "As found in transparency log.",
+					"Typewords": [
+						"int64"
+					]
+				},
+				{
+					"Name": "Discovered",
+					"Docs": "",
+					"Typewords": [
+						"timestamp"
+					]
+				},
+				{
+					"Name": "Module",
+					"Docs": "",
+					"Typewords": [
+						"string"
+					]
+				},
+				{
+					"Name": "Version",
+					"Docs": "",
+					"Typewords": [
+						"string"
+					]
+				},
+				{
+					"Name": "MessageID",
+					"Docs": "If 0, not yet sent. We can suppress sending when recent messages have failed, or when our send rate has been too high. Index for enumerating updates that weren't notified about yet.",
+					"Typewords": [
+						"int64"
+					]
+				},
+				{
+					"Name": "RepoURL",
+					"Docs": "",
+					"Typewords": [
+						"string"
+					]
+				},
+				{
+					"Name": "TagURL",
+					"Docs": "",
+					"Typewords": [
+						"string"
+					]
+				},
+				{
+					"Name": "DocURL",
+					"Docs": "",
+					"Typewords": [
+						"string"
+					]
+				}
+			]
+		},
+		{
+			"Name": "UserLog",
+			"Docs": "UserLog is a line of history about a change to the user account.",
+			"Fields": [
+				{
+					"Name": "ID",
+					"Docs": "",
+					"Typewords": [
+						"int64"
+					]
+				},
+				{
+					"Name": "UserID",
+					"Docs": "",
+					"Typewords": [
+						"int64"
+					]
+				},
+				{
+					"Name": "Time",
+					"Docs": "",
+					"Typewords": [
+						"timestamp"
+					]
+				},
+				{
+					"Name": "Text",
+					"Docs": "",
+					"Typewords": [
+						"string"
+					]
+				}
+			]
+		},
+		{
+			"Name": "SubscriptionImport",
+			"Docs": "",
+			"Fields": [
+				{
+					"Name": "GoMod",
+					"Docs": "",
+					"Typewords": [
+						"string"
+					]
+				},
+				{
+					"Name": "BelowModule",
+					"Docs": "",
+					"Typewords": [
+						"bool"
+					]
+				},
+				{
+					"Name": "OlderVersions",
+					"Docs": "",
+					"Typewords": [
+						"bool"
+					]
+				},
+				{
+					"Name": "Prerelease",
+					"Docs": "",
+					"Typewords": [
+						"bool"
+					]
+				},
+				{
+					"Name": "Pseudo",
+					"Docs": "",
+					"Typewords": [
+						"bool"
+					]
+				},
+				{
+					"Name": "Comment",
+					"Docs": "",
+					"Typewords": [
+						"string"
+					]
+				},
+				{
+					"Name": "Indirect",
+					"Docs": "",
+					"Typewords": [
+						"bool"
+					]
+				}
+			]
+		},
+		{
+			"Name": "Home",
+			"Docs": "",
+			"Fields": [
+				{
+					"Name": "Version",
+					"Docs": "",
+					"Typewords": [
+						"string"
+					]
+				},
+				{
+					"Name": "GoVersion",
+					"Docs": "",
+					"Typewords": [
+						"string"
+					]
+				},
+				{
+					"Name": "GoOS",
+					"Docs": "",
+					"Typewords": [
+						"string"
+					]
+				},
+				{
+					"Name": "GoArch",
+					"Docs": "",
+					"Typewords": [
+						"string"
+					]
+				},
+				{
+					"Name": "ServiceName",
+					"Docs": "",
+					"Typewords": [
+						"string"
+					]
+				},
+				{
+					"Name": "AdminName",
+					"Docs": "",
+					"Typewords": [
+						"string"
+					]
+				},
+				{
+					"Name": "AdminEmail",
+					"Docs": "",
+					"Typewords": [
+						"string"
+					]
+				},
+				{
+					"Name": "Note",
+					"Docs": "",
+					"Typewords": [
+						"string"
+					]
+				},
+				{
+					"Name": "SignupNote",
+					"Docs": "",
+					"Typewords": [
+						"string"
+					]
+				},
+				{
+					"Name": "Recents",
+					"Docs": "",
+					"Typewords": [
+						"[]",
+						"Recent"
+					]
+				}
+			]
+		},
+		{
+			"Name": "Recent",
+			"Docs": "",
+			"Fields": [
+				{
+					"Name": "Module",
+					"Docs": "",
+					"Typewords": [
+						"string"
+					]
+				},
+				{
+					"Name": "Version",
+					"Docs": "",
+					"Typewords": [
+						"string"
+					]
+				},
+				{
+					"Name": "Discovered",
+					"Docs": "",
+					"Typewords": [
+						"timestamp"
+					]
+				},
+				{
+					"Name": "RepoURL",
+					"Docs": "",
+					"Typewords": [
+						"string"
+					]
+				},
+				{
+					"Name": "TagURL",
+					"Docs": "",
+					"Typewords": [
+						"string"
+					]
+				},
+				{
+					"Name": "DocURL",
+					"Docs": "",
+					"Typewords": [
+						"string"
+					]
+				}
+			]
+		}
+	],
+	"Ints": [],
+	"Strings": [
+		{
+			"Name": "Interval",
+			"Docs": "How often a user wants to receive update notification email messages.",
+			"Values": [
+				{
+					"Name": "IntervalImmediate",
+					"Value": "immediate",
+					"Docs": ""
+				},
+				{
+					"Name": "IntervalHour",
+					"Value": "hour",
+					"Docs": ""
+				},
+				{
+					"Name": "IntervalDay",
+					"Value": "day",
+					"Docs": ""
+				},
+				{
+					"Name": "IntervalWeek",
+					"Value": "week",
+					"Docs": ""
+				}
+			]
+		}
+	],
+	"SherpaVersion": 0,
+	"SherpadocVersion": 1
+}

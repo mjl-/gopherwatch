@@ -1,0 +1,30 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8" />
+		<title>Unsubscribe from GopherWatch</title>
+		<style>
+fieldset { border: 0; }
+form, fieldset { margin: 0; padding: 0 }
+		</style>
+	</head>
+	<body>
+		<h1>Unsubscribing from GopherWatch</h1>
+		<form id="unsubscribeform" method="POST">
+			<fieldset id="fieldset"><button>Unsubscribe</button></fieldset>
+		</form>
+		<script>
+window.addEventListener('load', function() {
+	// If user doesn't have JS, they just see the form and can unsubscribe manually.
+	const msg = document.createElement('p')
+	msg.innerText = 'Automatically unsubscribing in 1 second...'
+	document.body.appendChild(msg)
+
+	window.setTimeout(function() {
+		unsubscribeform.submit()
+		fieldset.disabled = true
+	}, 1000)
+})
+		</script>
+	</body>
+</html>

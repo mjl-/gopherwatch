@@ -1,0 +1,17 @@
+<p>Hi!</p>
+
+<p>We received a signup request for your email address, please confirm your request for an account:</p>
+
+{{ $verifyURL := printf "%s/#verifysignup/%s" .BaseURL .User.VerifyToken }}
+	<p style="margin-left: 2em"><a href="{{ $verifyURL }}">{{ $verifyURL }}</a></p>
+
+<p>If you didn't sign up, you can ignore this message.</p>
+
+<p>
+Cheers,<br/>
+GopherWatch
+</p>
+<div style="opacity: .6">
+--<br/>
+{{ $unsubscribeURL := printf "%s/unsubscribe?id=%s" .BaseURL .User.MetaUnsubscribeToken }}<a href="{{ $unsubscribeURL }}">Unsubscribe</a> from future notifications
+</div>

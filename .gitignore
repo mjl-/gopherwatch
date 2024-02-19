@@ -1,0 +1,6 @@
+/gopherwatch
+/gopherwatch.db
+/gopherwatch.conf
+/data/
+/node_modules/
+/local/

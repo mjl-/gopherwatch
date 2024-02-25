@@ -11,7 +11,7 @@
 	</tr>
 {{ range $mv := .ModuleVersions }}
 	<tr>
-		<td>{{ if $mv.RepoURL }}<a href="https://{{ $mv.RepoURL }}">{{ $mv.Module }}</a>{{ else }}{{ $mv.Module }}{{ end }}</td>
+		<td>{{ if $mv.RepoURL }}<a href="{{ $mv.RepoURL }}">{{ $mv.Module }}</a>{{ else }}{{ $mv.Module }}{{ end }}</td>
 		<td><a href="https://pkg.go.dev/{{ $mv.Module }}">Doc</a></td>
 		<td>{{ range $v := $mv.Versions }} {{ if $v.TagURL }}<a href="{{ $v.TagURL }}">{{ $v.Version }}</a>{{ else }}{{ $v.Version }}{{ end }}{{ end }}</td>
 	</tr>

@@ -36,4 +36,3 @@ jsinstall0:
 fmt:
 	go fmt ./...
 	gofmt -w -s *.go
-

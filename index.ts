@@ -293,7 +293,8 @@ const subscriptionPopup = (sub: api.Subscription, subscriptions: api.Subscriptio
 				dom.br(),
 				dom.label(
 					'Comment',
-					comment=dom.textarea(sub.Comment),
+					// explicit String to prevent special scriptswitch handling
+					comment=dom.textarea(new String(sub.Comment)),
 				),
 				dom.br(),
 				dom.div(submitbtn=dom.submitbutton(sub.ID ? 'Save subscription' : 'Add subscription')),

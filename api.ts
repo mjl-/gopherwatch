@@ -582,7 +582,7 @@ class verifier {
 					return v
 				}
 			}
-			error('unknkown value ' + v + ' for named strings ' + t.Name)
+			error('unknown value ' + v + ' for named strings ' + t.Name)
 		} else if (intsTypes[nt.Name]) {
 			const t = nt as Ints
 			if (typeof v !== 'number' || !Number.isInteger(v)) {
@@ -596,7 +596,7 @@ class verifier {
 					return v
 				}
 			}
-			error('unknkown value ' + v + ' for named ints ' + t.Name)
+			error('unknown value ' + v + ' for named ints ' + t.Name)
 		} else {
 			throw new Error('unexpected named type ' + nt)
 		}

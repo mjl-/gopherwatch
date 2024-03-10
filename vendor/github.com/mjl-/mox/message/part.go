@@ -104,7 +104,7 @@ type Envelope struct {
 // Address as used in From and To headers.
 type Address struct {
 	Name string // Free-form name for display in mail applications.
-	User string // Localpart.
+	User string // Localpart, encoded as string. Must be parsed before using as Localpart.
 	Host string // Domain in ASCII.
 }
 
@@ -573,6 +573,15 @@ func (p *Part) ParseNextPart(elog *slog.Logger) (*Part, error) {
 	}
 	p.Parts = append(p.Parts, np)
 	return &p.Parts[len(p.Parts)-1], nil
+}
+
+// IsDSN returns whether the MIME structure of the part is a DSN.
+func (p *Part) IsDSN() bool {
+	return p.MediaType == "MULTIPART" &&
+		p.MediaSubType == "REPORT" &&
+		len(p.Parts) >= 2 &&
+		p.Parts[1].MediaType == "MESSAGE" &&
+		(p.Parts[1].MediaSubType == "DELIVERY-STATUS" || p.Parts[1].MediaSubType == "GLOBAL-DELIVERY-STATUS")
 }
 
 // Reader returns a reader for the decoded body content.

@@ -280,7 +280,11 @@ const subscriptionPopup = (sub: api.Subscription, subscriptions: api.Subscriptio
 						],
 					),
 					dom.div(
-						module=dom.input(attr.required(''), attr.value(sub.Module)),
+						module=dom.input(attr.required(''), attr.value(sub.Module), function change() {
+							// User may input a URL, better fix it for them instead of making the user fix it.
+							module.value = module.value.replace(/^https?:\/\//, '')
+							module.value = module.value.replace(/\/*$/, '')
+						}),
 						dom.div(dom._class('explain'), 'Enter a single module as you would use in a Go import statement.', dom.br(), 'Example: github.com/mjl-/gopherwatch, github.com/mjl- or golang.org.'),
 					),
 				),

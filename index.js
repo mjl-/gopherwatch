@@ -413,7 +413,7 @@ var api;
 						return v;
 					}
 				}
-				error('unknkown value ' + v + ' for named strings ' + t.Name);
+				error('unknown value ' + v + ' for named strings ' + t.Name);
 			}
 			else if (api.intsTypes[nt.Name]) {
 				const t = nt;
@@ -428,7 +428,7 @@ var api;
 						return v;
 					}
 				}
-				error('unknkown value ' + v + ' for named ints ' + t.Name);
+				error('unknown value ' + v + ' for named ints ' + t.Name);
 			}
 			else {
 				throw new Error('unexpected named type ' + nt);
@@ -1006,7 +1006,11 @@ const subscriptionPopup = (sub, subscriptions, render) => {
 			dom._kids(modulegomod, dom.label('Contents of go.mod', gomod = dom.textarea(attr.required(''), attr.rows('12'))), dom.div(dom._class('explain'), 'Paste the contents of your go.mod. Subscriptions will be created for all direct dependencies.'), dom.label(indirect = dom.input(attr.type('checkbox')), ' Also subscribe to indirect dependencies'), dom.br());
 			dom._kids(submitbtn, 'Add subscriptions for dependencies');
 		}),
-	]), dom.div(module = dom.input(attr.required(''), attr.value(sub.Module)), dom.div(dom._class('explain'), 'Enter a single module as you would use in a Go import statement.', dom.br(), 'Example: github.com/mjl-/gopherwatch, github.com/mjl- or golang.org.'))), dom.br(), dom.b('Notify about ...'), dom.label(belowModule = dom.input(attr.type('checkbox'), sub.BelowModule ? attr.checked('') : []), ' ', dom.span('Sub modules', attr.title('E.g. if subscribed to github.com/mjl-, whether to match github.com/mjl-/gopherwatch.'))), dom.label(olderVersions = dom.input(attr.type('checkbox'), sub.OlderVersions ? attr.checked('') : []), ' ', dom.span('Older versions than already seen', attr.title('Can happen when an old version (tag) is requested through the Go module proxy after a later tag, not uncommon after forking a repository and pushing all historic tags.'))), dom.label(prerelease = dom.input(attr.type('checkbox'), sub.Prerelease ? attr.checked('') : []), ' Prereleases such as v1.2.3-beta1'), dom.label(pseudo = dom.input(attr.type('checkbox'), sub.Pseudo ? attr.checked('') : []), ' Pseudo versions, such as v0.0.0-20240222094833-a1bd684a916b'), dom.br(), dom.label('Comment', 
+	]), dom.div(module = dom.input(attr.required(''), attr.value(sub.Module), function change() {
+		// User may input a URL, better fix it for them instead of making the user fix it.
+		module.value = module.value.replace(/^https?:\/\//, '');
+		module.value = module.value.replace(/\/*$/, '');
+	}), dom.div(dom._class('explain'), 'Enter a single module as you would use in a Go import statement.', dom.br(), 'Example: github.com/mjl-/gopherwatch, github.com/mjl- or golang.org.'))), dom.br(), dom.b('Notify about ...'), dom.label(belowModule = dom.input(attr.type('checkbox'), sub.BelowModule ? attr.checked('') : []), ' ', dom.span('Sub modules', attr.title('E.g. if subscribed to github.com/mjl-, whether to match github.com/mjl-/gopherwatch.'))), dom.label(olderVersions = dom.input(attr.type('checkbox'), sub.OlderVersions ? attr.checked('') : []), ' ', dom.span('Older versions than already seen', attr.title('Can happen when an old version (tag) is requested through the Go module proxy after a later tag, not uncommon after forking a repository and pushing all historic tags.'))), dom.label(prerelease = dom.input(attr.type('checkbox'), sub.Prerelease ? attr.checked('') : []), ' Prereleases such as v1.2.3-beta1'), dom.label(pseudo = dom.input(attr.type('checkbox'), sub.Pseudo ? attr.checked('') : []), ' Pseudo versions, such as v0.0.0-20240222094833-a1bd684a916b'), dom.br(), dom.label('Comment', 
 	// explicit String to prevent special scriptswitch handling
 	comment = dom.textarea(new String(sub.Comment))), dom.br(), dom.div(submitbtn = dom.submitbutton(sub.ID ? 'Save subscription' : 'Add subscription')))));
 	module.focus();

@@ -241,7 +241,7 @@ func parseConfig(filename string) error {
 	return nil
 }
 
-var testlog bool
+var testlog, resetTree bool
 
 func serve(args []string) {
 	fs := flag.NewFlagSet("serve", flag.ExitOnError)
@@ -254,6 +254,7 @@ func serve(args []string) {
 	fs.StringVar(&adminAddr, "adminaddr", "127.0.0.1:8075", "address to listen and serve the admin requests on")
 	fs.StringVar(&dbpath, "dbpath", "gopherwatch.db", "database, with users, subscriptions, etc")
 	fs.BoolVar(&testlog, "testlog", false, "use preset sumdb positions, forward the log only manually through api call; for testing")
+	fs.BoolVar(&resetTree, "resettree", false, "reset tree state, useful to prevent catching up for a long time after not running local/test instance for a while")
 	fs.Parse(args)
 	fs.Usage = func() {
 		fmt.Fprintln(os.Stderr, "usage: gopherwatch serve [flags]")

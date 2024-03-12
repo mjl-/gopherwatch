@@ -110,7 +110,7 @@ func (o ops) SecurityError(msg string) {
 func initTlogTest() {
 	err := database.Write(context.Background(), func(tx *bstore.Tx) error {
 		ts := TreeState{ID: 1}
-		if err := tx.Get(&ts); err == nil && !ts.Test {
+		if err := tx.Get(&ts); !resetTree && err == nil && !ts.Test {
 			slog.Error("refusing to start in test mode on non-test tree state in database")
 			os.Exit(1)
 		}
@@ -134,7 +134,7 @@ func openTlog() {
 	ts := TreeState{ID: 1}
 	if err := database.Get(context.Background(), &ts); err != nil && err != bstore.ErrAbsent {
 		logFatalx("get initial treestate", err)
-	} else if err == bstore.ErrAbsent {
+	} else if resetTree || err == bstore.ErrAbsent {
 		delay := time.Second
 		for {
 			if delay > time.Second {
@@ -163,7 +163,14 @@ func openTlog() {
 			}
 
 			ts = TreeState{ID: 1, RecordsInitial: n, RecordsProcessed: n}
-			if err := database.Insert(context.Background(), &ts); err != nil {
+			err = database.Write(context.Background(), func(tx *bstore.Tx) error {
+				if resetTree {
+					// Not checking error. We'll get it on insert.
+					tx.Delete(&TreeState{ID: 1})
+				}
+				return tx.Insert(&ts)
+			})
+			if err != nil {
 				logFatalx("storing initial transparency log position", err)
 			}
 			slog.Info("initialized transparency log", "position", ntree.N)

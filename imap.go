@@ -288,7 +288,7 @@ func processMessage(imapconn *imapclient.Conn, uid uint32) (problem string, rerr
 		if err == mail.ErrHeaderNotPresent {
 			return "message has no delivered-to and no to headers", nil
 		} else if len(to) != 1 {
-			return fmt.Sprintf("message has %d address in To header, need 1", len(to)), nil
+			return fmt.Sprintf("message has %d address in To header (%v), need 1", len(to), to), nil
 		}
 		deliveredTo = to[0].Address
 	}

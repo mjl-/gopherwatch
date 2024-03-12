@@ -10,12 +10,10 @@ More than 1000 modules had matching updates, results have been truncated. Caused
 either after a (longer) outage or by subscriptions that match many modules.
 {{ end }}
 
-Change subscriptions (link valid for 24 hours):
-
-        {{ .BaseURL }}/#login/{{ .LoginToken }}
-
 Cheers,
 GopherWatch
 
 --
 Unsubscribe: {{ .BaseURL }}/unsubscribe?id={{ .User.UpdatesUnsubscribeToken }}
+Change subscriptions (valid for 24h):
+{{ .BaseURL }}/#login/{{ .LoginToken }}

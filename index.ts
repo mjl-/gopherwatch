@@ -321,7 +321,13 @@ const overview = async () => {
 			subscriptions.length === 0 ? dom.tr(dom.td(attr.colspan('7'), 'No subscriptions yet, add the first one!')) : [],
 			subscriptions.map(sub => {
 				const row = dom.tr(
-					dom.td(sub.Module),
+					(overview.SkipModulePaths || []).includes(sub.Module) ? [
+						attr.title('Module will not match because it is on the list of skipped module paths:\n'+(overview.SkipModulePaths || []).join('\n')),
+						style({color: '#888'})
+					] : [],
+					dom.td(
+						sub.Module,
+					),
 					dom.td(sub.BelowModule ? 'Yes' : 'No'),
 					dom.td(sub.OlderVersions ? 'Yes' : 'No'),
 					dom.td(sub.Prerelease ? 'Yes' : 'No'),
@@ -654,7 +660,7 @@ const home = async () => {
 			dom.p('In Go, you use ', dom.span('"go get"', attr.title('Or related commands, such as "go install", "go mod tidy" and more')), ' to download Go modules to use as a dependency. Looking up a module is done through the ', dom.a(attr.href('https://sum.golang.org'), attr.rel('noopener'), 'Go checksum database'), ': A ', dom.a(attr.href('https://research.swtch.com/tlog'), attr.rel('noopener'), 'transparency log'), ' that proves it is not tampered with, providing high assurance that you get the correct code. It is an append-only public log of all unique Go modules/versions ever requested through "go get". It is just like certificate transparency logs for TLS certificates.'),
 			dom.p('GopherWatch follows the modules/versions appended to the Go sum database. You can subscribe to modules. GopherWatch sends you an email whenever a new matching module/version appears in the append-only log.'),
 			dom.h2('Recent modules'),
-			dom.p(dom.span('Prerelease versions ', attr.title('semver version with a dash, such as v1.2.3-20060102150405-652ceb448533')), ' and apparent mirrors not shown.'),
+			dom.p(dom.span('Prerelease versions ', attr.title('semver version with a dash, such as v1.2.3-20060102150405-652ceb448533')), ' and ', dom.span('apparent mirrors', attr.title((home.SkipModulePrefixes || []).join('\n'))), ' not shown.'),
 			dom.table(
 				dom._class('recents'), dom._class('mono'),
 				dom.thead(

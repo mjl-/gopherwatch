@@ -438,6 +438,14 @@
 					]
 				},
 				{
+					"Name": "SkipModulePaths",
+					"Docs": "",
+					"Typewords": [
+						"[]",
+						"string"
+					]
+				},
+				{
 					"Name": "Subscriptions",
 					"Docs": "",
 					"Typewords": [
@@ -754,6 +762,14 @@
 					"Name": "SignupNote",
 					"Docs": "",
 					"Typewords": [
+						"string"
+					]
+				},
+				{
+					"Name": "SkipModulePrefixes",
+					"Docs": "",
+					"Typewords": [
+						"[]",
 						"string"
 					]
 				},

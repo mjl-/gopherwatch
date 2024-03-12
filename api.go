@@ -748,6 +748,7 @@ type Overview struct {
 	UpdatesUnsubscribed bool
 	Backoff             string
 	BackoffUntil        time.Time
+	SkipModulePaths     []string
 
 	Subscriptions []Subscription
 	ModuleUpdates []ModuleUpdateURLs
@@ -764,6 +765,8 @@ type ModuleUpdateURLs struct {
 // Overview returns data needed for the overview page, after logging in.
 func (API) Overview(ctx context.Context) (overview Overview) {
 	reqInfo := ctx.Value(requestInfoCtxKey).(requestInfo)
+
+	overview.SkipModulePaths = config.SkipModulePaths
 
 	err := database.Read(ctx, func(tx *bstore.Tx) error {
 		u := User{ID: reqInfo.UserID}
@@ -978,16 +981,17 @@ type Recent struct {
 }
 
 type Home struct {
-	Version     string
-	GoVersion   string
-	GoOS        string
-	GoArch      string
-	ServiceName string
-	AdminName   string
-	AdminEmail  string
-	Note        string
-	SignupNote  string
-	Recents     []Recent
+	Version            string
+	GoVersion          string
+	GoOS               string
+	GoArch             string
+	ServiceName        string
+	AdminName          string
+	AdminEmail         string
+	Note               string
+	SignupNote         string
+	SkipModulePrefixes []string
+	Recents            []Recent
 }
 
 func _recents(ctx context.Context, n int) (recents []Recent) {
@@ -1011,11 +1015,12 @@ func _recents(ctx context.Context, n int) (recents []Recent) {
 // Home returns data for the home page.
 func (API) Home(ctx context.Context) (home Home) {
 	home = Home{
-		Version:     version,
-		GoVersion:   runtime.Version(),
-		GoOS:        runtime.GOOS,
-		GoArch:      runtime.GOARCH,
-		ServiceName: config.ServiceName,
+		Version:            version,
+		GoVersion:          runtime.Version(),
+		GoOS:               runtime.GOOS,
+		GoArch:             runtime.GOARCH,
+		ServiceName:        config.ServiceName,
+		SkipModulePrefixes: config.SkipModulePrefixes,
 	}
 
 	home.Recents = _recents(ctx, 15)

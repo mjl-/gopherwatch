@@ -12,6 +12,9 @@ testmode: build
 livemode: build
 	./gopherwatch serve
 
+genconf: build
+	./gopherwatch genconf >new.conf
+
 check:
 	GOARCH=386 CGO_ENABLED=0 go vet
 	staticcheck

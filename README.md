@@ -24,15 +24,16 @@ To compile:
 
 	CGO_ENABLED=0 go install github.com/mjl-/gopherwatch@latest
 
-To run, first create an empty config file:
+You'll need a config file to run it:
 
-	./gopherwatch describeconf >gopherwatch.conf
+	./gopherwatch genconf >gopherwatch.conf
 
-Edit the config file. Run it:
+Possibly edit the config file. Run it:
 
 	./gopherwatch serve
 
-Spare some time? Help a poor busy open source developer out! See the issues list.
+Spare some time? Help a poor time-strapped open source developer out!
+See the issues list.
 
 Created by Mechiel Lukkien, mechiel@ueber.net.
 

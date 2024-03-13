@@ -60,7 +60,7 @@ func notify() {
 			log.Error("composing update notification text", "err", err)
 			return
 		}
-		mailFrom, sendID, msg, eightbit, smtputf8, err := compose(false, u, subject, text, html)
+		mailFrom, sendID, msg, eightbit, smtputf8, err := compose(false, u, "", subject, text, html)
 		if err != nil {
 			log.Error("composing update notification message", "err", err)
 			return

@@ -16,7 +16,7 @@ github.com/mjl-/adns/internal/singleflight
 # github.com/mjl-/bstore v0.0.4
 ## explicit; go 1.19
 github.com/mjl-/bstore
-# github.com/mjl-/mox v0.0.10
+# github.com/mjl-/mox v0.0.11-0.20240313163553-2c9cb5b847a7
 ## explicit; go 1.21
 github.com/mjl-/mox/dane
 github.com/mjl-/mox/dns
@@ -25,6 +25,7 @@ github.com/mjl-/mox/imapclient
 github.com/mjl-/mox/message
 github.com/mjl-/mox/mlog
 github.com/mjl-/mox/moxio
+github.com/mjl-/mox/publicsuffix
 github.com/mjl-/mox/ratelimit
 github.com/mjl-/mox/sasl
 github.com/mjl-/mox/scram

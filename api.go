@@ -200,14 +200,51 @@ func (API) Signup(ctx context.Context, email string) {
 		logCheck(err, "closing smtp connectiong")
 	}()
 
-	var user User
-	var msg []byte
-	var mailFrom, sendID string
-	var eightbit, smtputf8 bool
-	var m Message
+	user, msg, mailFrom, eightbit, smtputf8, m, err := signup(ctx, email, "", true)
+	if serr, ok := err.(*sherpa.Error); ok {
+		panic(serr)
+	}
+	xcheckf(err, "adding user to database")
+
+	// Send the message.
+	submitctx, submitcancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer submitcancel()
+	if err := smtpSubmit(submitctx, smtpconn, true, mailFrom, email, msg, eightbit, smtputf8); err != nil {
+		logErrorx("submission for signup/passwordreset", err, "userid", user.ID)
+		if err := database.Delete(context.Background(), &m); err != nil {
+			logErrorx("removing metamessage added before submission error", err)
+		}
+		xcheckf(err, "submitting verification/password reset email")
+	}
+	slog.Info("submitted signup/passwordreset email", "userid", user.ID)
+}
+
+func signup(ctx context.Context, email string, origMessageID string, viaWebsite bool) (user User, msg []byte, mailFrom string, eightbit, smtputf8 bool, m Message, err error) {
+	var sendID string
+
+	// Code below can raise panics with sherpa.Error. Catch them an return as regular error.
+	defer func() {
+		x := recover()
+		if x == nil {
+			return
+		}
+		serr, ok := x.(*sherpa.Error)
+		if !ok || err != nil {
+			panic(x)
+		}
+		err = serr
+	}()
+
 	err = database.Write(ctx, func(tx *bstore.Tx) error {
 		user, err = bstore.QueryTx[User](tx).FilterNonzero(User{Email: email}).Get()
 		if err == bstore.ErrAbsent || err == nil && user.VerifyToken != "" {
+			if viaWebsite && config.SignupWebsiteDisabled {
+				return fmt.Errorf("signup via website currently disabled")
+			}
+			if !viaWebsite && config.SignupEmailDisabled {
+				return fmt.Errorf("signup via email currently disabled")
+			}
+
 			metaUnsubToken := user.MetaUnsubscribeToken
 			if metaUnsubToken == "" {
 				metaUnsubToken = xrandomID(16)
@@ -239,9 +276,9 @@ func (API) Signup(ctx context.Context, email string) {
 				return fmt.Errorf("adding user to database: %v", err)
 			}
 
-			subject, text, html, err := composeSignup(user)
+			subject, text, html, err := composeSignup(user, viaWebsite)
 			xcheckf(err, "composing signup text")
-			mailFrom, sendID, msg, eightbit, smtputf8, err = compose(true, user, subject, text, html)
+			mailFrom, sendID, msg, eightbit, smtputf8, err = compose(true, user, origMessageID, subject, text, html)
 			xcheckf(err, "composing signup message")
 
 			m = Message{
@@ -252,7 +289,11 @@ func (API) Signup(ctx context.Context, email string) {
 			if err := tx.Insert(&m); err != nil {
 				return fmt.Errorf("adding outgoing message to database: %v", err)
 			}
-			xaddUserLogf(tx, user.ID, "Signup through website")
+			msg := "Signup through email"
+			if viaWebsite {
+				msg = "Signup through website"
+			}
+			xaddUserLogf(tx, user.ID, msg)
 
 			return nil
 		}
@@ -266,9 +307,9 @@ func (API) Signup(ctx context.Context, email string) {
 			return fmt.Errorf("updating user in database: %v", err)
 		}
 
-		subject, text, html, err := composePasswordReset(user)
+		subject, text, html, err := composePasswordReset(user, viaWebsite)
 		xcheckf(err, "composing password reset text")
-		mailFrom, sendID, msg, eightbit, smtputf8, err = compose(true, user, subject, text, html)
+		mailFrom, sendID, msg, eightbit, smtputf8, err = compose(true, user, origMessageID, subject, text, html)
 		xcheckf(err, "composing password reset message")
 
 		m = Message{
@@ -279,23 +320,15 @@ func (API) Signup(ctx context.Context, email string) {
 		if err := tx.Insert(&m); err != nil {
 			return fmt.Errorf("adding outgoing message to database: %v", err)
 		}
-		xaddUserLogf(tx, user.ID, "Signup for existing account, sending password reset.")
+		msg := "Signup through email for existing account, sending password reset."
+		if viaWebsite {
+			msg = "Signup through website for existing account, sending password reset."
+		}
+		xaddUserLogf(tx, user.ID, msg)
 
 		return nil
 	})
-	xcheckf(err, "adding user to database")
-
-	// Send the message.
-	submitctx, submitcancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer submitcancel()
-	if err := smtpSubmit(submitctx, smtpconn, true, mailFrom, email, msg, eightbit, smtputf8); err != nil {
-		logErrorx("submission for signup/passwordreset", err, "userid", user.ID)
-		if err := database.Delete(context.Background(), &m); err != nil {
-			logErrorx("removing metamessage added before submission error", err)
-		}
-		xcheckf(err, "submitting verification/password reset email")
-	}
-	slog.Info("submitted signup/passwordreset email", "userid", user.ID)
+	return
 }
 
 // SignupEmail returns the email address for a verify token. So we can show it, and
@@ -464,10 +497,10 @@ func (API) RequestPasswordReset(ctx context.Context, prepToken, email string) {
 	}
 	xcheckf(err, "requesting password reset")
 
-	subject, text, html, err := composePasswordReset(user)
+	subject, text, html, err := composePasswordReset(user, true)
 	xcheckf(err, "composing password reset text")
 
-	mailFrom, sendID, msg, eightbit, smtputf8, err := compose(true, user, subject, text, html)
+	mailFrom, sendID, msg, eightbit, smtputf8, err := compose(true, user, "", subject, text, html)
 	xcheckf(err, "composing password reset message")
 
 	smtpTake()
@@ -981,17 +1014,20 @@ type Recent struct {
 }
 
 type Home struct {
-	Version            string
-	GoVersion          string
-	GoOS               string
-	GoArch             string
-	ServiceName        string
-	AdminName          string
-	AdminEmail         string
-	Note               string
-	SignupNote         string
-	SkipModulePrefixes []string
-	Recents            []Recent
+	Version               string
+	GoVersion             string
+	GoOS                  string
+	GoArch                string
+	ServiceName           string
+	AdminName             string
+	AdminEmail            string
+	Note                  string
+	SignupNote            string
+	SkipModulePrefixes    []string
+	SignupEmailDisabled   bool
+	SignupWebsiteDisabled bool
+	SignupAddress         string
+	Recents               []Recent
 }
 
 func _recents(ctx context.Context, n int) (recents []Recent) {
@@ -1015,12 +1051,15 @@ func _recents(ctx context.Context, n int) (recents []Recent) {
 // Home returns data for the home page.
 func (API) Home(ctx context.Context) (home Home) {
 	home = Home{
-		Version:            version,
-		GoVersion:          runtime.Version(),
-		GoOS:               runtime.GOOS,
-		GoArch:             runtime.GOARCH,
-		ServiceName:        config.ServiceName,
-		SkipModulePrefixes: config.SkipModulePrefixes,
+		Version:               version,
+		GoVersion:             runtime.Version(),
+		GoOS:                  runtime.GOOS,
+		GoArch:                runtime.GOARCH,
+		ServiceName:           config.ServiceName,
+		SkipModulePrefixes:    config.SkipModulePrefixes,
+		SignupEmailDisabled:   config.SignupEmailDisabled,
+		SignupWebsiteDisabled: config.SignupWebsiteDisabled,
+		SignupAddress:         smtp.Address{Localpart: config.Submission.From.ParsedLocalpartBase, Domain: config.Submission.From.DNSDomain}.String(),
 	}
 
 	home.Recents = _recents(ctx, 15)
@@ -1144,7 +1183,7 @@ func (API) TestSend(ctx context.Context, secret, kind, email string) {
 	subject, text, html, err := composeSample(kind, u, loginToken)
 	xcheckf(err, "compose text")
 
-	mailFrom, sendID, msg, eightbit, smtputf8, err := compose(kind != "moduleupdates", u, subject, text, html)
+	mailFrom, sendID, msg, eightbit, smtputf8, err := compose(kind != "moduleupdates", u, "", config.SubjectPrefix+subject, text, html)
 	xcheckf(err, "compose message")
 	slog.Info("composed test message", "sendid", sendID)
 

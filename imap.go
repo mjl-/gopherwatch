@@ -13,14 +13,17 @@ import (
 	"time"
 
 	"github.com/mjl-/bstore"
+	"github.com/mjl-/mox/dns"
 	"github.com/mjl-/mox/dsn"
 	"github.com/mjl-/mox/imapclient"
+	"github.com/mjl-/mox/message"
+	"github.com/mjl-/mox/publicsuffix"
 	"github.com/mjl-/mox/smtp"
 )
 
-func watchDSN() {
+func mailWatch() {
 	for {
-		if err := imapWatchDSN(); err != nil {
+		if err := imapWatch(); err != nil {
 			logErrorx("watch imap mailbox for dsn", err)
 		}
 
@@ -90,10 +93,10 @@ func imapConnectSelect() (rimapconn *imapclient.Conn, rerr error) {
 	return imapconn, nil
 }
 
-// Make IMAP connection, call IDLE (with a timeout?). When it returns, look for
-// unseen messages without dsn or notdsn flags. Read through each, adding flags and
-// marking dsn's as read.
-func imapWatchDSN() (rerr error) {
+// Make IMAP connection, call IDLE. When it returns, look for unseen messages
+// without flags indicating we've processed them. Read through each, adding flags
+// and marking as read.
+func imapWatch() (rerr error) {
 	defer func() {
 		x := recover()
 		if x != nil {
@@ -112,6 +115,12 @@ func imapWatchDSN() (rerr error) {
 	}
 	defer imapconn.Close()
 
+	// Process messages currently in mailbox.
+	if err := imapProcess(); err != nil {
+		metricIncomingProcessErrors.Inc()
+		return fmt.Errorf("processing new messages in mailbox: %v", err)
+	}
+
 	// Keep executing an IDLE command. It returns when something happened (e.g. message
 	// delivered). We'll then process it and wait for the next event.
 	for {
@@ -121,7 +130,9 @@ func imapWatchDSN() (rerr error) {
 	}
 }
 
-// Wait for an "exists" response from idle. Other untagged responses are ignored and we continue idling. When we see an "exists", we process it on a new temporary connection.
+// Wait for an "exists" response from idle. Other untagged responses are
+// ignored and we continue idling. When we see an "exists", we process it on a
+// new temporary connection.
 func imapWait(imapconn *imapclient.Conn) error {
 	if err := imapconn.Commandf("", "idle"); err != nil {
 		return fmt.Errorf("writing idle command: %v", err)
@@ -153,7 +164,8 @@ func imapWait(imapconn *imapclient.Conn) error {
 	}
 }
 
-// Connect to imap server and handle all messages that are unread and we haven't labeled yet.
+// Connect to imap server and handle all messages that are unread and we haven't
+// labeled yet.
 func imapProcess() error {
 	slog.Info("connecting to process new messages after untagged exists message from idle...")
 
@@ -165,7 +177,7 @@ func imapProcess() error {
 
 	// Search messages that we haven't processed yet, and aren't read yet.
 	prefix := config.IMAP.KeywordPrefix
-	untagged, result, err := imapconn.Transactf("uid search return (all) unseen unkeyword %sdsn unkeyword %snotdsn unkeyword %sproblem", prefix, prefix, prefix)
+	untagged, result, err := imapconn.Transactf("uid search return (all) unseen unkeyword %ssignup unkeyword %sdsn unkeyword %signored unkeyword %sproblem", prefix, prefix, prefix, prefix)
 	if err := imapresult(result, err); err != nil {
 		return fmt.Errorf("imap search: %v", err)
 	}
@@ -192,6 +204,7 @@ func imapProcess() error {
 				if problem, err := processMessage(imapconn, uid); err != nil {
 					return fmt.Errorf("processing message with uid %d: %v", uid, err)
 				} else if problem != "" {
+					metricIncomingProblem.Inc()
 					slog.Info("problem processing message, marking as failed", "uid", uid, "problem", problem)
 					_, sresult, err := imapconn.Transactf("uid store %d +flags.silent (%sproblem)", uid, config.IMAP.KeywordPrefix)
 					if err := imapresult(sresult, err); err != nil {
@@ -215,23 +228,26 @@ func imapProcess() error {
 	return nil
 }
 
-// processMessages tries to parse the message as DSN. If there is a
+// processMessages tries to parse the message as signup or DSN. If there is a
 // connection/protocol error, an error is returned and further operations on the
 // connection stopped. If problem is non-empty, the message should be marked as
 // broken and continued with the next message.
 func processMessage(imapconn *imapclient.Conn, uid uint32) (problem string, rerr error) {
 	log := slog.With("uid", uid)
 
-	// Fetch message.See if it is a dsn. If not, add keyword notdsn. If so, fetch it,
-	// parse it, look up the original message we sent and mark it as failed and the
-	// user as needing backoff. Add other related message flags on various handling
-	// errors.
-	meta, mresult, err := imapconn.Transactf(`uid fetch %d (flags bodystructure body.peek[header.fields (delivered-to to)])`, uid)
+	// Fetch message. See if it is a signup and that's enabled. If so, process and mark
+	// with signup label. Otherwise check if it's a dsn. If not, add keyword ignored.
+	// If so, fetch it, parse it, look up the original message we sent and mark it as
+	// failed and the user as needing backoff. Add other related message flags on
+	// various handling errors.
+	const headerFields = "header.fields (delivered-to to list-id list-unsubscribe list-unsubscribe-post auto-submitted precedence authentication-results)"
+	meta, mresult, err := imapconn.Transactf(`uid fetch %d (envelope flags bodystructure body.peek[%s])`, uid, headerFields)
 	if err := imapresult(mresult, err); err != nil {
 		return fmt.Sprintf("fetch new message metadata: %v", err), nil
 	}
 
-	// We need these three reponse messages.
+	// We need these four reponse messages.
+	var fetchEnv *imapclient.FetchEnvelope
 	var fetchFlags *imapclient.FetchFlags
 	var fetchBody *imapclient.FetchBody
 	var fetchBodystructure *imapclient.FetchBodystructure
@@ -243,6 +259,9 @@ func processMessage(imapconn *imapclient.Conn, uid uint32) (problem string, rerr
 		}
 		for _, a := range f.Attrs {
 			switch fa := a.(type) {
+			case imapclient.FetchEnvelope:
+				fetchEnv = &fa
+
 			case imapclient.FetchFlags:
 				fetchFlags = &fa
 
@@ -261,28 +280,205 @@ func processMessage(imapconn *imapclient.Conn, uid uint32) (problem string, rerr
 		}
 	}
 
-	if fetchFlags == nil || fetchBody == nil || fetchBodystructure == nil {
-		return fmt.Sprintf("imap server did not send all requested fields, flags %v, body %v, bodystructure %v", fetchFlags != nil, fetchBody != nil, fetchBodystructure != nil), nil
+	if fetchEnv == nil || fetchFlags == nil || fetchBody == nil || fetchBodystructure == nil {
+		return fmt.Sprintf("imap server did not send all requested fields, envelope %v, flags %v, body %v, bodystructure %v", fetchEnv != nil, fetchFlags != nil, fetchBody != nil, fetchBodystructure != nil), nil
 	}
 
 	// We should only be processing messages without certain flags.
 	for _, flag := range *fetchFlags {
-		if strings.EqualFold(flag, `\Seen`) || strings.EqualFold(flag, config.IMAP.KeywordPrefix+"dsn") || strings.EqualFold(flag, config.IMAP.KeywordPrefix+"notdsn") {
+		if strings.EqualFold(flag, `\Seen`) || strings.EqualFold(flag, config.IMAP.KeywordPrefix+"signup") || strings.EqualFold(flag, config.IMAP.KeywordPrefix+"dsn") || strings.EqualFold(flag, config.IMAP.KeywordPrefix+"ignored") {
 			log.Error("bug: message already has flag? continuing", "flag", flag)
 		}
 	}
 
+	// Parse headers
 	// We need an address that the message (if DSN) was addressed to. It contains the
 	// ID of the message (sendID) that we need to match against.
-	var deliveredTo string
-	if !strings.EqualFold(fetchBody.Section, "header.fields (delivered-to to)") {
+	if !strings.EqualFold(fetchBody.Section, headerFields) {
 		return fmt.Sprintf("bug: received a fetch body result, but not for requested header fields? section %q", fetchBody.Section), nil
 	}
 	msg, err := mail.ReadMessage(strings.NewReader(fetchBody.Body))
 	if err != nil {
 		return fmt.Sprintf("parsing headers for delivered-to or to: %s", err), nil
 	}
-	deliveredTo = strings.TrimSpace(msg.Header.Get("Delivered-To"))
+
+	listID := strings.TrimSpace(msg.Header.Get("List-Id"))
+	listUnsubscribe := strings.TrimSpace(msg.Header.Get("List-Unsubscribe"))
+	listUnsubscribePost := strings.TrimSpace(msg.Header.Get("List-Unsubscribe-Post"))
+	autoSubmitted := strings.TrimSpace(msg.Header.Get("Auto-Submitted"))
+	precedence := strings.TrimSpace(msg.Header.Get("Precedence"))
+	if strings.EqualFold(strings.TrimSpace(fetchEnv.Subject), "signup for "+config.ServiceName) {
+		log.Debug("looking at signup message")
+
+		// See RFC 3834.
+		if listID != "" || listUnsubscribe != "" || listUnsubscribePost != "" || autoSubmitted != "" || precedence != "" {
+			return fmt.Sprintf("signup message has headers indicating it was sent automatically or through a list, not processing (list-id %q, list-unsubscribe %q, list-unsubscribe-post %q, auto-submitted %q, precedence %q)", listID, listUnsubscribe, listUnsubscribePost, autoSubmitted, precedence), nil
+		}
+
+		env := fetchEnv
+		if len(env.From) != 1 {
+			return fmt.Sprintf(`signup message with %d "from" addresses, expecting 1`, len(env.From)), nil
+		}
+
+		if len(env.To) != 1 {
+			return fmt.Sprintf(`signup message with %d "to" addresses (%#v), expecting 1`, len(env.To), env.To), nil
+		}
+
+		// Errors are logged and an empty address returned: callers do comparisons which
+		// will fail.
+		parseAddress := func(a imapclient.Address) smtp.Address {
+			lp, err := smtp.ParseLocalpart(a.Mailbox)
+			if err != nil {
+				log.Info("parsing localpart failed", "err", err, "imapaddress", a)
+				return smtp.Address{}
+			}
+			dom, err := dns.ParseDomain(a.Host)
+			if err != nil {
+				log.Info("parsing domain failed", "err", err, "imapaddress", a)
+				return smtp.Address{}
+			}
+			return smtp.Address{Localpart: lp, Domain: dom}
+		}
+
+		toAddr := parseAddress(env.To[0])
+		expAddr := smtp.Address{Localpart: config.Submission.From.ParsedLocalpartBase, Domain: config.Submission.From.DNSDomain}
+		if toAddr != expAddr {
+			return fmt.Sprintf(`signup message "to" unrecognized address %s, expecting %s`, toAddr, expAddr), nil
+		}
+		fromAddr := parseAddress(env.From[0])
+		log.Info("signup message", "from", fromAddr, "to", toAddr)
+		if len(env.ReplyTo) > 1 || len(env.ReplyTo) == 1 && parseAddress(env.ReplyTo[0]) != fromAddr {
+			return fmt.Sprintf(`signup message with reply-to %#v different than "from" address %#v`, env.ReplyTo, env.From[0]), nil
+		}
+
+		// We'll parse the Authentication-Results of the message to find dmarc/spf/dkim
+		// status. Not great to have to parse this, but it'll do. We only use the top-most.
+		// We don't want to trust whatever the message already contained, can be forged.
+		// If we find a dmarc=pass or dmarc=fail, we know our answer. Otherwise, we'll look
+		// for spf and dkim pass, and apply relaxed validation.
+		// todo: if we didn't find dmarc=none, we could try looking up the dmarc record and applying it. perhaps good to again evaluate the dmarc record with the spf/dkim details we found: the dmarc policy may have a setting where it applies to fewer than 100% of the messages. we can probably be more strict.
+		authres := msg.Header.Get("Authentication-Results")
+		if authres == "" {
+			return fmt.Sprintf("missing authentication-results in message, cannot validate from address"), nil
+		}
+		ar, err := message.ParseAuthResults(authres + "\n")
+		if err != nil {
+			return fmt.Sprintf(`parsing authentication-results in message, cannot validate from address: %v (%q)`, err, authres), nil
+		}
+
+		aligned := func(d dns.Domain) bool {
+			ctx := context.Background()
+			return d == fromAddr.Domain || publicsuffix.Lookup(ctx, log, d) == publicsuffix.Lookup(ctx, log, fromAddr.Domain)
+		}
+		var good bool
+	Methods:
+		for _, am := range ar.Methods {
+			getProp := func(typ, prop string) string {
+				for _, ap := range am.Props {
+					if ap.Type == typ && ap.Property == prop {
+						return ap.Value
+					}
+				}
+				return ""
+
+			}
+			switch am.Method {
+			case "dmarc":
+				switch am.Result {
+				case "pass":
+					log.Info("message has dmarc pass")
+					good = true
+					break Methods
+				case "fail":
+					return fmt.Sprintf(`message contained a dmarc failure, not responding`), nil
+				}
+			case "spf":
+				if am.Result == "pass" {
+					v := getProp("smtp", "mailfrom")
+					addr, err := smtp.ParseAddress(v)
+					var spfDom dns.Domain
+					if err == nil {
+						spfDom = addr.Domain
+					} else {
+						spfDom, err = dns.ParseDomain(v)
+					}
+					if err != nil {
+						log.Debug("parsing mailfrom address from spf=pass", "err", err, "mailfrom", v)
+						continue
+					}
+					ok := aligned(spfDom)
+					log.Debug("message spf alignment", "aligned", ok)
+					if ok {
+						good = true
+					}
+				}
+			case "dkim":
+				if am.Result == "pass" {
+					v := getProp("header", "d")
+					dkimDom, err := dns.ParseDomain(v)
+					if err != nil {
+						log.Debug("parsing domain from dkim=pass", "err", err, "domain", v)
+						continue
+					}
+					ok := aligned(dkimDom)
+					log.Debug("message dkim alignment", "aligned", ok)
+					if ok {
+						good = ok
+					}
+				}
+			}
+		}
+		if !good {
+			return fmt.Sprintf(`"from" address not aligned-dmarc-verified`), nil
+		}
+
+		// Message seems legit. Lookup the user. If no account yet, we'll try to create it.
+		// If user exists, we'll send a password reset. Like the regular signup form.
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		user, msg, mailFrom, eightbit, smtputf8, m, err := signup(ctx, fromAddr.String(), env.MessageID, false)
+		if err != nil {
+			return fmt.Sprintf("registering signup for user %q: %v", fromAddr.String(), err), nil
+		}
+
+		// Check if we can send. If not, abort.
+		for i := 0; !smtpCanSend(); i++ {
+			if i >= 15 {
+				return "signup reply not sent due to outgoing rate limit", nil
+			}
+			time.Sleep(time.Second)
+		}
+
+		log.Info("marking message as signup before sending")
+		_, sresult, err := imapconn.Transactf(`uid store %d +flags.silent (%ssignup)`, uid, config.IMAP.KeywordPrefix)
+		if err := imapresult(sresult, err); err != nil {
+			return fmt.Sprintf("setting flag signup: %v", err), nil
+		}
+
+		// Send message.
+		smtpconn, err := smtpDial(ctx)
+		if err == nil {
+			defer smtpconn.Close()
+			err = smtpSubmit(ctx, smtpconn, true, mailFrom, user.Email, msg, eightbit, smtputf8)
+		}
+		if err != nil {
+			logErrorx("submission for signup/passwordreset", err, "userid", user.ID)
+			if err := database.Delete(context.Background(), &m); err != nil {
+				logErrorx("removing metamessage added before submission error", err)
+			}
+			return fmt.Sprintf("dialing submission for signup reply to %q: %v", fromAddr.String(), err), nil
+		}
+
+		_, sresult, err = imapconn.Transactf(`uid store %d +flags.silent (\seen \answered)`, uid)
+		if err := imapresult(sresult, err); err != nil {
+			return "", fmt.Errorf("setting flags answered and seen: %v", err)
+		}
+		metricIncomingSignup.Inc()
+
+		return "", nil
+	}
+
+	deliveredTo := strings.TrimSpace(msg.Header.Get("Delivered-To"))
 	if deliveredTo == "" {
 		to, err := msg.Header.AddressList("To")
 		if err == mail.ErrHeaderNotPresent {
@@ -306,12 +502,12 @@ func processMessage(imapconn *imapclient.Conn, uid uint32) (problem string, rerr
 		}
 	}
 	if !isdsn {
-		log.Info("marking message as not a dsn")
-		_, sresult, err := imapconn.Transactf("uid store %d +flags.silent (%snotdsn)", uid, config.IMAP.KeywordPrefix)
+		log.Info("marking message as ignored")
+		_, sresult, err := imapconn.Transactf("uid store %d +flags.silent (%signored)", uid, config.IMAP.KeywordPrefix)
 		if err := imapresult(sresult, err); err != nil {
-			return "", fmt.Errorf("setting flag notdsn: %v", err)
+			return "", fmt.Errorf("setting flag ignored: %v", err)
 		}
-		metricIncomingNonDSN.Inc()
+		metricIncomingIgnored.Inc()
 		return "", nil
 	}
 
@@ -402,7 +598,7 @@ func processMessage(imapconn *imapclient.Conn, uid uint32) (problem string, rerr
 		return "", fmt.Errorf("storing dsn flags %q for message with uid %d: %v", flags, uid, err)
 	}
 	if more != "" {
-		metricIncomingDSNProblem.Inc()
+		metricIncomingProblem.Inc()
 	} else {
 		metricIncomingDSN.Inc()
 	}

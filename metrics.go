@@ -36,22 +36,28 @@ var (
 			Help: "Number of errors while processing incoming messages over IMAP.",
 		},
 	)
-	metricIncomingNonDSN = promauto.NewCounter(
+	metricIncomingIgnored = promauto.NewCounter(
 		prometheus.CounterOpts{
-			Name: "gopherwatch_incoming_nondsn_total",
-			Help: "Number of received non-DSN messages.",
+			Name: "gopherwatch_incoming_ignored_total",
+			Help: "Number of received ignored messages (not DSN/signup).",
 		},
 	)
 	metricIncomingDSN = promauto.NewCounter(
 		prometheus.CounterOpts{
 			Name: "gopherwatch_incoming_dsn_total",
-			Help: "Number of received DSN messages.",
+			Help: "Number of successfully handled DSN messages.",
 		},
 	)
-	metricIncomingDSNProblem = promauto.NewCounter(
+	metricIncomingProblem = promauto.NewCounter(
 		prometheus.CounterOpts{
-			Name: "gopherwatch_incoming_dsn_problem_total",
-			Help: "Number of DSN messages that could not be processed.",
+			Name: "gopherwatch_incoming_problem_total",
+			Help: "Number of incoming messages (DSN/signup) that could not be processed.",
+		},
+	)
+	metricIncomingSignup = promauto.NewCounter(
+		prometheus.CounterOpts{
+			Name: "gopherwatch_incoming_signup_total",
+			Help: "Number of successfully handled signup messages.",
 		},
 	)
 	metricSumdbRequests = promauto.NewGauge(

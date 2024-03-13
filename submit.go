@@ -80,7 +80,7 @@ func smtpTake() {
 	}
 }
 
-// smtpSend sends a single message on the connection.
+// smtpSubmit sends a single message on the connection.
 // caller must have called smtpTake to consume from the ratelimiter.
 func smtpSubmit(ctx context.Context, smtpconn *smtpclient.Client, meta bool, mailFrom, rcptTo string, msg []byte, eightbit, smtputf8 bool) (rerr error) {
 	slog.Info("submitting message...")

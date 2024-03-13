@@ -69,6 +69,9 @@ export interface Home {
 	Note: string
 	SignupNote: string
 	SkipModulePrefixes?: string[] | null
+	SignupEmailDisabled: boolean
+	SignupWebsiteDisabled: boolean
+	SignupAddress: string
 	Recents?: Recent[] | null
 }
 
@@ -98,7 +101,7 @@ export const types: TypenameMap = {
 	"ModuleUpdateURLs": {"Name":"ModuleUpdateURLs","Docs":"","Fields":[{"Name":"ID","Docs":"","Typewords":["int64"]},{"Name":"UserID","Docs":"","Typewords":["int64"]},{"Name":"SubscriptionID","Docs":"","Typewords":["int64"]},{"Name":"LogRecordID","Docs":"","Typewords":["int64"]},{"Name":"Discovered","Docs":"","Typewords":["timestamp"]},{"Name":"Module","Docs":"","Typewords":["string"]},{"Name":"Version","Docs":"","Typewords":["string"]},{"Name":"MessageID","Docs":"","Typewords":["int64"]},{"Name":"RepoURL","Docs":"","Typewords":["string"]},{"Name":"TagURL","Docs":"","Typewords":["string"]},{"Name":"DocURL","Docs":"","Typewords":["string"]}]},
 	"UserLog": {"Name":"UserLog","Docs":"","Fields":[{"Name":"ID","Docs":"","Typewords":["int64"]},{"Name":"UserID","Docs":"","Typewords":["int64"]},{"Name":"Time","Docs":"","Typewords":["timestamp"]},{"Name":"Text","Docs":"","Typewords":["string"]}]},
 	"SubscriptionImport": {"Name":"SubscriptionImport","Docs":"","Fields":[{"Name":"GoMod","Docs":"","Typewords":["string"]},{"Name":"BelowModule","Docs":"","Typewords":["bool"]},{"Name":"OlderVersions","Docs":"","Typewords":["bool"]},{"Name":"Prerelease","Docs":"","Typewords":["bool"]},{"Name":"Pseudo","Docs":"","Typewords":["bool"]},{"Name":"Comment","Docs":"","Typewords":["string"]},{"Name":"Indirect","Docs":"","Typewords":["bool"]}]},
-	"Home": {"Name":"Home","Docs":"","Fields":[{"Name":"Version","Docs":"","Typewords":["string"]},{"Name":"GoVersion","Docs":"","Typewords":["string"]},{"Name":"GoOS","Docs":"","Typewords":["string"]},{"Name":"GoArch","Docs":"","Typewords":["string"]},{"Name":"ServiceName","Docs":"","Typewords":["string"]},{"Name":"AdminName","Docs":"","Typewords":["string"]},{"Name":"AdminEmail","Docs":"","Typewords":["string"]},{"Name":"Note","Docs":"","Typewords":["string"]},{"Name":"SignupNote","Docs":"","Typewords":["string"]},{"Name":"SkipModulePrefixes","Docs":"","Typewords":["[]","string"]},{"Name":"Recents","Docs":"","Typewords":["[]","Recent"]}]},
+	"Home": {"Name":"Home","Docs":"","Fields":[{"Name":"Version","Docs":"","Typewords":["string"]},{"Name":"GoVersion","Docs":"","Typewords":["string"]},{"Name":"GoOS","Docs":"","Typewords":["string"]},{"Name":"GoArch","Docs":"","Typewords":["string"]},{"Name":"ServiceName","Docs":"","Typewords":["string"]},{"Name":"AdminName","Docs":"","Typewords":["string"]},{"Name":"AdminEmail","Docs":"","Typewords":["string"]},{"Name":"Note","Docs":"","Typewords":["string"]},{"Name":"SignupNote","Docs":"","Typewords":["string"]},{"Name":"SkipModulePrefixes","Docs":"","Typewords":["[]","string"]},{"Name":"SignupEmailDisabled","Docs":"","Typewords":["bool"]},{"Name":"SignupWebsiteDisabled","Docs":"","Typewords":["bool"]},{"Name":"SignupAddress","Docs":"","Typewords":["string"]},{"Name":"Recents","Docs":"","Typewords":["[]","Recent"]}]},
 	"Recent": {"Name":"Recent","Docs":"","Fields":[{"Name":"Module","Docs":"","Typewords":["string"]},{"Name":"Version","Docs":"","Typewords":["string"]},{"Name":"Discovered","Docs":"","Typewords":["timestamp"]},{"Name":"RepoURL","Docs":"","Typewords":["string"]},{"Name":"TagURL","Docs":"","Typewords":["string"]},{"Name":"DocURL","Docs":"","Typewords":["string"]}]},
 	"Interval": {"Name":"Interval","Docs":"","Values":[{"Name":"IntervalImmediate","Value":"immediate","Docs":""},{"Name":"IntervalHour","Value":"hour","Docs":""},{"Name":"IntervalDay","Value":"day","Docs":""},{"Name":"IntervalWeek","Value":"week","Docs":""}]},
 }

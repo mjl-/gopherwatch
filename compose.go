@@ -32,7 +32,7 @@ import (
 //
 // If configured, the message subject prefix is prepended to the subject before
 // adding it to the message.
-func compose(meta bool, user User, subject, text, html string) (mailFrom, sendID string, msg []byte, eightbit, smtputf8 bool, rerr error) {
+func compose(meta bool, user User, origMessageID, subject, text, html string) (mailFrom, sendID string, msg []byte, eightbit, smtputf8 bool, rerr error) {
 	// message.Composer uses panic for error handling...
 	defer func() {
 		x := recover()
@@ -48,9 +48,22 @@ func compose(meta bool, user User, subject, text, html string) (mailFrom, sendID
 	var buf bytes.Buffer
 	c := message.NewComposer(&buf, 0)
 
+	rcptToAddr, err := smtp.ParseAddress(user.Email)
+	if err != nil {
+		// This shouldn't fail, we've validated the address before.
+		return "", "", nil, false, false, fmt.Errorf("parsing recipient address: %v", err)
+	}
+	for _, ch := range string(rcptToAddr.Localpart + config.Submission.From.ParsedLocalpartBase) {
+		if ch >= 0x80 {
+			c.SMTPUTF8 = true
+			c.Has8bit = true
+			break
+		}
+	}
+
 	sendID = xrandomID(16)
 	mailFromAddr := smtp.Address{
-		Localpart: smtp.Localpart(config.Submission.From.LocalpartBase),
+		Localpart: config.Submission.From.ParsedLocalpartBase,
 		Domain:    config.Submission.From.DNSDomain,
 	}
 	// We send from our address that uses "+<id>" in the SMTP MAIL FROM address.
@@ -64,19 +77,14 @@ func compose(meta bool, user User, subject, text, html string) (mailFrom, sendID
 		{Address: config.Admin.AddressParsed},
 	})
 
-	rcptToAddr, err := smtp.ParseAddress(user.Email)
-	if err != nil {
-		// This shouldn't fail, we've validated the address before.
-		return "", "", nil, false, false, fmt.Errorf("parsing recipient address: %v", err)
-	}
 	c.HeaderAddrs("To", []message.NameAddress{{Address: rcptToAddr}})
-	var prefix string
-	if config.SubjectPrefix != "" {
-		prefix = config.SubjectPrefix + ": "
-	}
-	c.Subject(prefix + subject)
+	c.Subject(subject)
 	c.Header("Date", time.Now().Format(RFC5322Z))
 	c.Header("Message-ID", fmt.Sprintf("<%s@%s>", sendID, hostname))
+	if origMessageID != "" {
+		c.Header("In-Reply-To", fmt.Sprintf("<%s>", origMessageID))
+		c.Header("References", fmt.Sprintf("<%s>", origMessageID))
+	}
 	c.Header("User-Agent", "gopherwatch/"+version)
 
 	// Try to prevent out-of-office notifications. RFC 3834.
@@ -152,8 +160,11 @@ func composeRender(templText *texttemplate.Template, templHTML *htmltemplate.Tem
 	return textBuf.String(), pageBuf.String(), nil
 }
 
-func composeSignup(u User) (subject, text, html string, err error) {
-	subject = "Verify new account"
+func composeSignup(u User, fromWebsite bool) (subject, text, html string, err error) {
+	subject = config.SubjectPrefix + "Verify new account"
+	if !fromWebsite {
+		subject = "re: signup for " + config.ServiceName
+	}
 	args := struct {
 		BaseURL string
 		Subject string
@@ -163,8 +174,11 @@ func composeSignup(u User) (subject, text, html string, err error) {
 	return subject, text, html, err
 }
 
-func composePasswordReset(u User) (subject, text, html string, err error) {
-	subject = "Password reset requested"
+func composePasswordReset(u User, fromWebsite bool) (subject, text, html string, err error) {
+	subject = config.SubjectPrefix + "Password reset requested"
+	if !fromWebsite {
+		subject = "re: signup for " + config.ServiceName
+	}
 	args := struct {
 		BaseURL string
 		Subject string
@@ -244,7 +258,7 @@ func composeModuleUpdates(u User, loginToken string, updates []ModuleUpdate) (su
 		return l[i].Module < l[j].Module
 	})
 
-	subject = fmt.Sprintf("%d modules with %d new versions", len(l), len(updates))
+	subject = fmt.Sprintf("%s%d modules with %d new versions", config.SubjectPrefix, len(l), len(updates))
 
 	var truncated bool
 	if len(l) > 1100 {
@@ -267,9 +281,9 @@ func composeModuleUpdates(u User, loginToken string, updates []ModuleUpdate) (su
 func composeSample(kind string, user User, loginToken string) (subject, text, html string, err error) {
 	switch kind {
 	case "signup":
-		return composeSignup(user)
+		return composeSignup(user, true)
 	case "passwordreset":
-		return composePasswordReset(user)
+		return composePasswordReset(user, true)
 	case "moduleupdates":
 		updates := []ModuleUpdate{
 			{

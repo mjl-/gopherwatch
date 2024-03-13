@@ -110,12 +110,14 @@ var config Config
 type Config struct {
 	BaseURL                  string        `sconf-doc:"URL to where this gopherwatch is hosted, without trailing slash, it is added when composing URLs."`
 	TokenSecret              string        `sconf-doc:"Secret used for signing and verifying tokens. Used in HMAC."`
-	ServiceName              string        `sconf-doc:"Public name of this service, e.g. GopherWatch.org, or another domain-like name."`
+	ServiceName              string        `sconf-doc:"Public name of this service, e.g. GopherWatch.org, or another domain-like name. Also used in the subject of signup emails."`
 	Admin                    Admin         `sconf-doc:"Information about the admin."`
-	SubjectPrefix            string        `sconf-doc:"Prefix to add to subject for outgoing messages. E.g. 'GopherWatch'. If non-empty, the text, and ': ' is prepended."`
+	SubjectPrefix            string        `sconf-doc:"Prefix to add to subject for outgoing messages. E.g. 'GopherWatch: ' or '[GophererWatch] '."`
 	ReverseProxied           bool          `sconf-doc:"Whether incoming requests are reverse proxied. If set, X-Forwarded-* headers are taken into account for evaluation use of HTTPS (for secure cookies) and remote IP address (for rate limiting)."`
 	DailyMetaMessagesMax     int           `sconf-doc:"Maximum number of meta email messages to send to a single email recipient in the last 24 hours. This rate limits the outgoing messages about password resets. Not update messages."`
 	EmailUpdateInterval      time.Duration `sconf-doc:"Minimum interval between sending an email about module/version updates to an email address. To prevent sending too many."`
+	SignupEmailDisabled      bool          `sconf:"optional" sconf-doc:"Whether signup via email is disabled."`
+	SignupWebsiteDisabled    bool          `sconf:"optional" sconf-doc:"Whether signup via website is disabled."`
 	ModuleVersionHistorySize int64         `sconf-doc:"Number of most recent modules/versions seen in transparency log to keep in database. If <= 0, all are kept."`
 	SumDB                    SumDB         `sconf-doc:"Transparency log that we are following. The verifier key cannot be changed after initializing the state."`
 	IndexBaseURL             string        `sconf:"optional" sconf-doc:"Base URL of index, e.g. https://index.golang.org. Only used for explicitly trying to forward to the latest, non-cached module added to the transparency log."`
@@ -138,10 +140,11 @@ type SumDB struct {
 }
 
 type SubmissionFrom struct {
-	Name          string     `sconf-doc:"Display name for use in message From headers."`
-	LocalpartBase string     `sconf-doc:"Localpart of the 'From' email address. Used in From message header. The SMTP MAIL FROM address starts with this localpart, then '+' and a per-message unique ID is added."`
-	Domain        string     `sconf-doc:"Domain used to compose the email address."`
-	DNSDomain     dns.Domain `sconf:"-"`
+	Name                string         `sconf-doc:"Display name for use in message From headers."`
+	LocalpartBase       string         `sconf-doc:"Localpart of the 'From' email address. Used in From message header. The SMTP MAIL FROM address starts with this localpart, then '+' and a per-message unique ID is added."`
+	Domain              string         `sconf-doc:"Domain used to compose the email address."`
+	ParsedLocalpartBase smtp.Localpart `sconf:"-"`
+	DNSDomain           dns.Domain     `sconf:"-"`
 }
 type Submission struct {
 	Host          string         `sconf-doc:"Hostname or IP address of submission service."`
@@ -229,11 +232,11 @@ func main() {
 			TokenSecret:          random(),
 			ServiceName:          "gopherwatch.localhost",
 			Admin:                Admin{Address: "gopherwatch@localhost", Password: random()},
-			SubjectPrefix:        "GopherWatch",
+			SubjectPrefix:        "GopherWatch: ",
 			DailyMetaMessagesMax: 10,
 			SumDB:                SumDB{"https://sum.golang.org", "sum.golang.org+033de0ae+Ac4zctda0e5eza+HJyk9SxEdh+s3Ux18htTTAD8OuAn8", 10 * time.Minute},
 			IndexBaseURL:         "https://index.golang.org",
-			Submission:           Submission{"localhost", 1465, true, true, "mox@localhost", "moxmoxmox", SubmissionFrom{"gopherwatch", "mox", "localhost", dns.Domain{}}},
+			Submission:           Submission{"localhost", 1465, true, true, "mox@localhost", "moxmoxmox", SubmissionFrom{"gopherwatch", "mox", "localhost", "", dns.Domain{}}},
 			IMAP:                 IMAP{"localhost", 1993, true, true, "mox@localhost", "moxmoxmox", "gw:"},
 			SkipModulePrefixes:   []string{"github.1git.de/", "github.hscsec.cn/", "github.phpd.cn/", "github.skymusic.top/"},
 			SkipModulePaths:      []string{"github.com"},
@@ -269,9 +272,14 @@ func parseConfig(filename string) error {
 		return err
 	}
 
+	config.Submission.From.ParsedLocalpartBase, err = smtp.ParseLocalpart(config.Submission.From.LocalpartBase)
+	if err != nil {
+		return fmt.Errorf("parsing localpart of submission from: %v", err)
+	}
+
 	config.Submission.From.DNSDomain, err = dns.ParseDomain(config.Submission.From.Domain)
 	if err != nil {
-		return fmt.Errorf("parsing dns from domain: %v", err)
+		return fmt.Errorf("parsing dns of submission from domain: %v", err)
 	}
 
 	config.Admin.AddressParsed, err = smtp.ParseAddress(config.Admin.Address)
@@ -706,8 +714,9 @@ func serve(args []string) {
 		}
 	})
 
-	// Watch mailbox over IMAP for DSNs. uses IMAP IDLE to wait for incoming messages.
-	go watchDSN()
+	// Watch mailbox over IMAP for DSNs and signup messages. uses IMAP IDLE to wait for
+	// incoming messages.
+	go mailWatch()
 
 	if metricsAddr != "" {
 		slog.Warn("listening for metrics", "metricsaddr", metricsAddr)

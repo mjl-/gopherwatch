@@ -774,6 +774,27 @@
 					]
 				},
 				{
+					"Name": "SignupEmailDisabled",
+					"Docs": "",
+					"Typewords": [
+						"bool"
+					]
+				},
+				{
+					"Name": "SignupWebsiteDisabled",
+					"Docs": "",
+					"Typewords": [
+						"bool"
+					]
+				},
+				{
+					"Name": "SignupAddress",
+					"Docs": "",
+					"Typewords": [
+						"string"
+					]
+				},
+				{
 					"Name": "Recents",
 					"Docs": "",
 					"Typewords": [

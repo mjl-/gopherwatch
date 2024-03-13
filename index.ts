@@ -312,7 +312,7 @@ const overview = async () => {
 	const overview = await client.Overview()
 	let subscriptions: api.Subscription[] = overview.Subscriptions || []
 	let moduleUpdates: api.ModuleUpdateURLs[] = overview.ModuleUpdates || []
-	
+
 	let substbody: HTMLElement
 	let moduptbody: HTMLElement
 
@@ -379,7 +379,7 @@ const overview = async () => {
 		dom.div(
 			style({display: 'flex', justifyContent: 'space-between'}),
 			dom.div(
-				dom.p(dom.a(attr.href('#'), '← Home')),
+				dom.p('← ', dom.a(attr.href('#'), 'Home')),
 			),
 			dom.div(
 				overview.Email, ' ',
@@ -512,7 +512,7 @@ const overview = async () => {
 		dom.br(),
 
 		dom.h2('History'),
-		dom.p('Changes to your account over time, from new to old.'),
+		dom.p('Changes to your account over time, from recent to old.'),
 		dom.table(
 			dom.tr(
 				dom.th('Age'), dom.th('Description'),
@@ -553,41 +553,60 @@ const signedup = (email: string) => {
 	)
 }
 
-const signup = (note: string) => {
+const signup = (home: api.Home) => {
 	let fieldset: HTMLFieldSetElement
-	let email: HTMLInputElement
+	let email: HTMLInputElement | undefined
 
 	dom._kids(document.body,
 		dom.div(dom._class('page'),
 			dom.p('← ', dom.a(attr.href('#'), 'Home', function click() { route() })),
 			dom.h1('Create account'),
-			note ? [
-				dom.pre(dom._class('mono'), style({whiteSpace: 'pre-wrap', padding: '1em', backgroundColor: '#eee', borderRadius: '.25em'}), note),
+			home.SignupNote ? [
+				dom.pre(dom._class('mono'), style({whiteSpace: 'pre-wrap', padding: '1em', backgroundColor: '#eee', borderRadius: '.25em'}), home.SignupNote),
 				dom.br(),
 			] : [],
-			dom.p("We'll send you an email with a confirmation link."),
-			dom.form(
-				async function submit(e: SubmitEvent) {
-					e.stopPropagation()
-					e.preventDefault()
 
-					await check(fieldset, async () => {
-						await client.Signup(email.value.trim())
-						signedup(email.value.trim())
-					})
-				},
-				fieldset=dom.fieldset(
-					dom.label(
-						'Email address',
-						dom.div(email=dom.input(attr.type('email'), attr.required(''))),
+			home.SignupEmailDisabled && home.SignupWebsiteDisabled ? dom.p('Signups are disabled at the moment, sorry.') : [],
+
+			// Only show header if there is a choice.
+			home.SignupEmailDisabled ? [] : [
+				home.SignupWebsiteDisabled ? [] : dom.h2('Option 1: Signup through email (preferred option)'),
+				dom.p('Send us an email with "signup for ', home.ServiceName, '" as the subject:'),
+				dom.p(style({marginLeft: '3em'}), dom.a(attr.href('mailto:'+encodeURIComponent(home.SignupAddress)+'?subject='+encodeURIComponent('signup for '+home.ServiceName) + '&body='+encodeURIComponent('sign me up for gopherwatch!')), home.SignupAddress)),
+				dom.p(`Any message body will do, it's ignored. You'll get a reply with a link to confirm and set a password, after which we'll automatically log you in. Easy.`),
+				home.SignupWebsiteDisabled ? [] : dom.p("Sending us the first email ", dom.span("helps your junk filter realize we're good people.", attr.title(`Because our email address will be a known correspondent in your account. It may also prevent delays in delivery. Hopefully your junk filter will seize the opportunity!`))),
+				dom.br(),
+			],
+
+			home.SignupWebsiteDisabled ? [] : [
+				home.SignupEmailDisabled ? [] : dom.h2('Option 2: Signup through website'),
+				dom.form(
+					async function submit(e: SubmitEvent) {
+						e.stopPropagation()
+						e.preventDefault()
+
+						await check(fieldset, async () => {
+							await client.Signup(email!.value.trim())
+							signedup(email!.value.trim())
+						})
+					},
+					fieldset=dom.fieldset(
+						dom.label(
+							style({display: 'inline'}),
+							'Email address', ' ',
+							email=dom.input(attr.type('email'), attr.required('')),
+						),
+						' ',
+						dom.submitbutton('Create account'),
 					),
-					dom.br(),
-					dom.div(dom.submitbutton('Create account')),
-				),
-			)
+					dom.p("We'll send you an email with a confirmation link."),
+				)
+			],
 		)
 	)
-	email.focus()
+	if (email && home.SignupEmailDisabled) {
+		email.focus()
+	}
 }
 
 const age = (date: Date) => {
@@ -677,7 +696,7 @@ const home = async () => {
 			dom.h2('Get started'),
 			dom.p(
 				dom.clickbutton('Create account', function click() {
-					signup(home.SignupNote)
+					signup(home)
 				}),
 				' Do it.',
 			),

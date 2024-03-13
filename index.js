@@ -19,7 +19,7 @@ var api;
 		"ModuleUpdateURLs": { "Name": "ModuleUpdateURLs", "Docs": "", "Fields": [{ "Name": "ID", "Docs": "", "Typewords": ["int64"] }, { "Name": "UserID", "Docs": "", "Typewords": ["int64"] }, { "Name": "SubscriptionID", "Docs": "", "Typewords": ["int64"] }, { "Name": "LogRecordID", "Docs": "", "Typewords": ["int64"] }, { "Name": "Discovered", "Docs": "", "Typewords": ["timestamp"] }, { "Name": "Module", "Docs": "", "Typewords": ["string"] }, { "Name": "Version", "Docs": "", "Typewords": ["string"] }, { "Name": "MessageID", "Docs": "", "Typewords": ["int64"] }, { "Name": "RepoURL", "Docs": "", "Typewords": ["string"] }, { "Name": "TagURL", "Docs": "", "Typewords": ["string"] }, { "Name": "DocURL", "Docs": "", "Typewords": ["string"] }] },
 		"UserLog": { "Name": "UserLog", "Docs": "", "Fields": [{ "Name": "ID", "Docs": "", "Typewords": ["int64"] }, { "Name": "UserID", "Docs": "", "Typewords": ["int64"] }, { "Name": "Time", "Docs": "", "Typewords": ["timestamp"] }, { "Name": "Text", "Docs": "", "Typewords": ["string"] }] },
 		"SubscriptionImport": { "Name": "SubscriptionImport", "Docs": "", "Fields": [{ "Name": "GoMod", "Docs": "", "Typewords": ["string"] }, { "Name": "BelowModule", "Docs": "", "Typewords": ["bool"] }, { "Name": "OlderVersions", "Docs": "", "Typewords": ["bool"] }, { "Name": "Prerelease", "Docs": "", "Typewords": ["bool"] }, { "Name": "Pseudo", "Docs": "", "Typewords": ["bool"] }, { "Name": "Comment", "Docs": "", "Typewords": ["string"] }, { "Name": "Indirect", "Docs": "", "Typewords": ["bool"] }] },
-		"Home": { "Name": "Home", "Docs": "", "Fields": [{ "Name": "Version", "Docs": "", "Typewords": ["string"] }, { "Name": "GoVersion", "Docs": "", "Typewords": ["string"] }, { "Name": "GoOS", "Docs": "", "Typewords": ["string"] }, { "Name": "GoArch", "Docs": "", "Typewords": ["string"] }, { "Name": "ServiceName", "Docs": "", "Typewords": ["string"] }, { "Name": "AdminName", "Docs": "", "Typewords": ["string"] }, { "Name": "AdminEmail", "Docs": "", "Typewords": ["string"] }, { "Name": "Note", "Docs": "", "Typewords": ["string"] }, { "Name": "SignupNote", "Docs": "", "Typewords": ["string"] }, { "Name": "SkipModulePrefixes", "Docs": "", "Typewords": ["[]", "string"] }, { "Name": "Recents", "Docs": "", "Typewords": ["[]", "Recent"] }] },
+		"Home": { "Name": "Home", "Docs": "", "Fields": [{ "Name": "Version", "Docs": "", "Typewords": ["string"] }, { "Name": "GoVersion", "Docs": "", "Typewords": ["string"] }, { "Name": "GoOS", "Docs": "", "Typewords": ["string"] }, { "Name": "GoArch", "Docs": "", "Typewords": ["string"] }, { "Name": "ServiceName", "Docs": "", "Typewords": ["string"] }, { "Name": "AdminName", "Docs": "", "Typewords": ["string"] }, { "Name": "AdminEmail", "Docs": "", "Typewords": ["string"] }, { "Name": "Note", "Docs": "", "Typewords": ["string"] }, { "Name": "SignupNote", "Docs": "", "Typewords": ["string"] }, { "Name": "SkipModulePrefixes", "Docs": "", "Typewords": ["[]", "string"] }, { "Name": "SignupEmailDisabled", "Docs": "", "Typewords": ["bool"] }, { "Name": "SignupWebsiteDisabled", "Docs": "", "Typewords": ["bool"] }, { "Name": "SignupAddress", "Docs": "", "Typewords": ["string"] }, { "Name": "Recents", "Docs": "", "Typewords": ["[]", "Recent"] }] },
 		"Recent": { "Name": "Recent", "Docs": "", "Fields": [{ "Name": "Module", "Docs": "", "Typewords": ["string"] }, { "Name": "Version", "Docs": "", "Typewords": ["string"] }, { "Name": "Discovered", "Docs": "", "Typewords": ["timestamp"] }, { "Name": "RepoURL", "Docs": "", "Typewords": ["string"] }, { "Name": "TagURL", "Docs": "", "Typewords": ["string"] }, { "Name": "DocURL", "Docs": "", "Typewords": ["string"] }] },
 		"Interval": { "Name": "Interval", "Docs": "", "Values": [{ "Name": "IntervalImmediate", "Value": "immediate", "Docs": "" }, { "Name": "IntervalHour", "Value": "hour", "Docs": "" }, { "Name": "IntervalDay", "Value": "day", "Docs": "" }, { "Name": "IntervalWeek", "Value": "week", "Docs": "" }] },
 	};
@@ -1050,7 +1050,7 @@ const overview = async () => {
 	};
 	let intervalFieldset;
 	let interval;
-	const page = dom.div(dom._class('page'), dom._class('overview'), dom.div(style({ display: 'flex', justifyContent: 'space-between' }), dom.div(dom.p(dom.a(attr.href('#'), '← Home'))), dom.div(overview.Email, ' ', dom.clickbutton('Logout', async function click() {
+	const page = dom.div(dom._class('page'), dom._class('overview'), dom.div(style({ display: 'flex', justifyContent: 'space-between' }), dom.div(dom.p('← ', dom.a(attr.href('#'), 'Home'))), dom.div(overview.Email, ' ', dom.clickbutton('Logout', async function click() {
 		try {
 			await client.Logout();
 		}
@@ -1097,7 +1097,7 @@ const overview = async () => {
 		await check(intervalFieldset, async () => {
 			await client.IntervalSet(interval.value);
 		});
-	}, intervalFieldset = dom.fieldset(dom.label(style({ display: 'inline' }), dom.div('Minimum time between two notification emails'), interval = dom.select(dom.option('Immediate', attr.value('immediate'), overview.UpdateInterval === api.Interval.IntervalImmediate ? attr.selected('') : []), dom.option('1 hour', attr.value('hour'), overview.UpdateInterval === api.Interval.IntervalHour ? attr.selected('') : []), dom.option('1 day', attr.value('day'), overview.UpdateInterval === api.Interval.IntervalDay ? attr.selected('') : []), dom.option('1 week', attr.value('week'), overview.UpdateInterval === api.Interval.IntervalWeek ? attr.selected('') : []))), ' ', dom.submitbutton('Save'), dom.div(dom._class('explain'), 'Selected interval may be extended by a server-configured minimum interval.')))), dom.br(), dom.h2('Recent module updates'), dom.table(dom.tr(dom.th('Module', attr.title('Repo URLs are guesses and may be wrong.')), dom.th('Version', attr.title('Tag URLs are guesses and may be wrong.')), dom.th('Notified'), dom.th('Age'), dom.th('Docs', attr.title('Doc URLs are guesses and may be wrong.'))), moduptbody = dom.tbody()), dom.br(), dom.h2('History'), dom.p('Changes to your account over time, from new to old.'), dom.table(dom.tr(dom.th('Age'), dom.th('Description')), (overview.UserLogs || []).map(l => dom.tr(dom.td(age(l.Time)), dom.td(l.Text)))), dom.br(), dom.h2('Danger'), dom.clickbutton('Remove account', async function click(e) {
+	}, intervalFieldset = dom.fieldset(dom.label(style({ display: 'inline' }), dom.div('Minimum time between two notification emails'), interval = dom.select(dom.option('Immediate', attr.value('immediate'), overview.UpdateInterval === api.Interval.IntervalImmediate ? attr.selected('') : []), dom.option('1 hour', attr.value('hour'), overview.UpdateInterval === api.Interval.IntervalHour ? attr.selected('') : []), dom.option('1 day', attr.value('day'), overview.UpdateInterval === api.Interval.IntervalDay ? attr.selected('') : []), dom.option('1 week', attr.value('week'), overview.UpdateInterval === api.Interval.IntervalWeek ? attr.selected('') : []))), ' ', dom.submitbutton('Save'), dom.div(dom._class('explain'), 'Selected interval may be extended by a server-configured minimum interval.')))), dom.br(), dom.h2('Recent module updates'), dom.table(dom.tr(dom.th('Module', attr.title('Repo URLs are guesses and may be wrong.')), dom.th('Version', attr.title('Tag URLs are guesses and may be wrong.')), dom.th('Notified'), dom.th('Age'), dom.th('Docs', attr.title('Doc URLs are guesses and may be wrong.'))), moduptbody = dom.tbody()), dom.br(), dom.h2('History'), dom.p('Changes to your account over time, from recent to old.'), dom.table(dom.tr(dom.th('Age'), dom.th('Description')), (overview.UserLogs || []).map(l => dom.tr(dom.td(age(l.Time)), dom.td(l.Text)))), dom.br(), dom.h2('Danger'), dom.clickbutton('Remove account', async function click(e) {
 		if (!window.confirm('Your account and all associated data will be permanently deleted. Are you sure?')) {
 			return;
 		}
@@ -1115,21 +1115,35 @@ const overview = async () => {
 const signedup = (email) => {
 	dom._kids(document.body, dom.div(dom._class('page'), dom.h1('Account created'), dom.p("We've sent an email to ", dom.b(email), " with a confirmation link."), dom.p("If the email is not coming in, don't forget to check your spam mailbox. Also, some mail servers employ 'grey listing', holding off first-time deliveries for up to half an hour."), dom.p("Go back ", dom.a(attr.href('#'), 'home', function click() { route(); }), '.')));
 };
-const signup = (note) => {
+const signup = (home) => {
 	let fieldset;
 	let email;
-	dom._kids(document.body, dom.div(dom._class('page'), dom.p('← ', dom.a(attr.href('#'), 'Home', function click() { route(); })), dom.h1('Create account'), note ? [
-		dom.pre(dom._class('mono'), style({ whiteSpace: 'pre-wrap', padding: '1em', backgroundColor: '#eee', borderRadius: '.25em' }), note),
+	dom._kids(document.body, dom.div(dom._class('page'), dom.p('← ', dom.a(attr.href('#'), 'Home', function click() { route(); })), dom.h1('Create account'), home.SignupNote ? [
+		dom.pre(dom._class('mono'), style({ whiteSpace: 'pre-wrap', padding: '1em', backgroundColor: '#eee', borderRadius: '.25em' }), home.SignupNote),
 		dom.br(),
-	] : [], dom.p("We'll send you an email with a confirmation link."), dom.form(async function submit(e) {
-		e.stopPropagation();
-		e.preventDefault();
-		await check(fieldset, async () => {
-			await client.Signup(email.value.trim());
-			signedup(email.value.trim());
-		});
-	}, fieldset = dom.fieldset(dom.label('Email address', dom.div(email = dom.input(attr.type('email'), attr.required('')))), dom.br(), dom.div(dom.submitbutton('Create account'))))));
-	email.focus();
+	] : [], home.SignupEmailDisabled && home.SignupWebsiteDisabled ? dom.p('Signups are disabled at the moment, sorry.') : [], 
+	// Only show header if there is a choice.
+	home.SignupEmailDisabled ? [] : [
+		home.SignupWebsiteDisabled ? [] : dom.h2('Option 1: Signup through email (preferred option)'),
+		dom.p('Send us an email with "signup for ', home.ServiceName, '" as the subject:'),
+		dom.p(style({ marginLeft: '3em' }), dom.a(attr.href('mailto:' + encodeURIComponent(home.SignupAddress) + '?subject=' + encodeURIComponent('signup for ' + home.ServiceName) + '&body=' + encodeURIComponent('sign me up for gopherwatch!')), home.SignupAddress)),
+		dom.p(`Any message body will do, it's ignored. You'll get a reply with a link to confirm and set a password, after which we'll automatically log you in. Easy.`),
+		home.SignupWebsiteDisabled ? [] : dom.p("Sending us the first email ", dom.span("helps your junk filter realize we're good people.", attr.title(`Because our email address will be a known correspondent in your account. It may also prevent delays in delivery. Hopefully your junk filter will seize the opportunity!`))),
+		dom.br(),
+	], home.SignupWebsiteDisabled ? [] : [
+		home.SignupEmailDisabled ? [] : dom.h2('Option 2: Signup through website'),
+		dom.form(async function submit(e) {
+			e.stopPropagation();
+			e.preventDefault();
+			await check(fieldset, async () => {
+				await client.Signup(email.value.trim());
+				signedup(email.value.trim());
+			});
+		}, fieldset = dom.fieldset(dom.label(style({ display: 'inline' }), 'Email address', ' ', email = dom.input(attr.type('email'), attr.required(''))), ' ', dom.submitbutton('Create account')), dom.p("We'll send you an email with a confirmation link."))
+	]));
+	if (email && home.SignupEmailDisabled) {
+		email.focus();
+	}
 };
 const age = (date) => {
 	const nowSecs = new Date().getTime() / 1000;
@@ -1177,7 +1191,7 @@ const home = async () => {
 	};
 	renderRecents(home.Recents || [], true);
 	dom._kids(document.body, dom.div(dom._class('home'), dom._class('page'), dom.div(style({ textAlign: 'right' }), dom.a(attr.href('#overview'), 'Login')), dom.h1('GopherWatch'), dom.p('Keep tabs on Go modules.'), dom.p('Subscribe to Go module paths and receive an email when a new module/version is published through the Go module proxy.'), dom.h2('How does it work?'), dom.p('In Go, you use ', dom.span('"go get"', attr.title('Or related commands, such as "go install", "go mod tidy" and more')), ' to download Go modules to use as a dependency. Looking up a module is done through the ', dom.a(attr.href('https://sum.golang.org'), attr.rel('noopener'), 'Go checksum database'), ': A ', dom.a(attr.href('https://research.swtch.com/tlog'), attr.rel('noopener'), 'transparency log'), ' that proves it is not tampered with, providing high assurance that you get the correct code. It is an append-only public log of all unique Go modules/versions ever requested through "go get". It is just like certificate transparency logs for TLS certificates.'), dom.p('GopherWatch follows the modules/versions appended to the Go sum database. You can subscribe to modules. GopherWatch sends you an email whenever a new matching module/version appears in the append-only log.'), dom.h2('Recent modules'), dom.p(dom.span('Prerelease versions ', attr.title('semver version with a dash, such as v1.2.3-20060102150405-652ceb448533')), ' and ', dom.span('apparent mirrors', attr.title((home.SkipModulePrefixes || []).join('\n'))), ' not shown.'), dom.table(dom._class('recents'), dom._class('mono'), dom.thead(dom.tr(dom.th('Module', attr.title('Repo URLs are guesses and may be wrong.')), dom.th('Version', attr.title('Tag URLs are guesses and may be wrong.')), dom.th('Age'), dom.th('Docs', attr.title('Doc URLs are guesses and may be wrong.')))), recentsElem), dom.br(), dom.h2('Get started'), dom.p(dom.clickbutton('Create account', function click() {
-		signup(home.SignupNote);
+		signup(home);
 	}), ' Do it.'), dom.h2('FAQ'), dom.dl(dom.dt(dom.h3("How does this compare to other mechanism to stay updated on modules?")), dom.dd(dom.p('You have several options for tracking dependencies for a Go project:'), dom.ul(dom.li('Just running "get get -u" to update dependencies to the latest versions.'), dom.li('You can find dependencies that really need to be upgraded with "govulncheck". It helpfully only mentions modules if you are using vulnerable code.'), dom.li('You could also "watch" a repository on e.g. github. But it\'ll be different for each "software forge". On github, it only works if "releases" are created. You cannot watch new tagged versions with the "watch" feature. Though you can watch tags using RSS. The point is, software forges are different, some do not help you.')), dom.br(), dom.p('GopherWatch works regardless of where the software is "hosted". GopherWatch can also notify repositories that match a module prefix, e.g. all modules/versions in an organization, perhaps your own.'), dom.p('GopherWatch can not report on a module if it is never requested through the Go module proxy.'), dom.p('GopherWatch does not currently watch the depedencies of modules you are subscribed to. That could be a good next step: Each time a module version is released, fetch the new go.mod and start monitoring dependencies for new versions. Patches welcome!'))), home.Note ? [
 		dom.h2('Notes'),
 		dom.pre(dom._class('mono'), style({ whiteSpace: 'pre-wrap', padding: '1em', backgroundColor: '#eee', borderRadius: '.25em' }), home.Note),

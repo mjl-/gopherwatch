@@ -429,13 +429,12 @@ func serve(args []string) {
 				return err
 			}
 			var kind string
+			user.UpdatesUnsubscribed = true
 			if meta {
 				user.MetaUnsubscribed = true
-				user.UpdatesUnsubscribed = true
 				kind = "module updates and service messages"
 			} else {
-				user.UpdatesUnsubscribed = true
-				kind = "service messages"
+				kind = "module updates"
 			}
 			if err := tx.Update(&user); err != nil {
 				return fmt.Errorf("marking user as unsubscribed in database: %v", err)

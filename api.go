@@ -809,6 +809,8 @@ func (API) Overview(ctx context.Context) (overview Overview) {
 		overview.UpdateInterval = u.UpdateInterval
 		overview.Backoff = u.Backoff.String()
 		overview.BackoffUntil = u.BackoffUntil
+		overview.MetaUnsubscribed = u.MetaUnsubscribed
+		overview.UpdatesUnsubscribed = u.UpdatesUnsubscribed
 
 		overview.Subscriptions, err = bstore.QueryDB[Subscription](ctx, database).FilterNonzero(Subscription{UserID: reqInfo.UserID}).SortAsc("ID").List()
 		xcheckf(err, "listing subscriptions")

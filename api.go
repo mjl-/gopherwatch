@@ -173,7 +173,7 @@ func xratemeta(tx *bstore.Tx, user User, signup bool) {
 func xcanonicalAddress(email string) string {
 	addr, err := smtp.ParseAddress(email)
 	xusercheckf(err, "validating address")
-	return addr.Pack(true)
+	return addr.String()
 }
 
 // Signup registers a new account. We send an email for users to verify they
@@ -184,6 +184,8 @@ func (API) Signup(ctx context.Context, email string) {
 
 	xrate(ratelimitSignup, reqInfo.Request)
 
+	emailAddr, err := smtp.ParseAddress(email)
+	xusercheckf(err, "validating address")
 	email = xcanonicalAddress(email)
 
 	// Make SMTP connection. If it fails, return error to user.
@@ -200,11 +202,15 @@ func (API) Signup(ctx context.Context, email string) {
 		logCheck(err, "closing smtp connectiong")
 	}()
 
-	user, msg, mailFrom, eightbit, smtputf8, m, err := signup(ctx, email, "", true)
+	user, msg, mailFrom, eightbit, smtputf8, m, err := signup(ctx, emailAddr, "", true)
 	if serr, ok := err.(*sherpa.Error); ok {
 		panic(serr)
 	}
 	xcheckf(err, "adding user to database")
+	if user.ID == 0 {
+		// We didn't create a new account.
+		return
+	}
 
 	// Send the message.
 	submitctx, submitcancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -219,7 +225,7 @@ func (API) Signup(ctx context.Context, email string) {
 	slog.Info("submitted signup/passwordreset email", "userid", user.ID)
 }
 
-func signup(ctx context.Context, email string, origMessageID string, viaWebsite bool) (user User, msg []byte, mailFrom string, eightbit, smtputf8 bool, m Message, err error) {
+func signup(ctx context.Context, email smtp.Address, origMessageID string, viaWebsite bool) (user User, msg []byte, mailFrom string, eightbit, smtputf8 bool, m Message, err error) {
 	var sendID string
 
 	// Code below can raise panics with sherpa.Error. Catch them an return as regular error.
@@ -236,7 +242,7 @@ func signup(ctx context.Context, email string, origMessageID string, viaWebsite 
 	}()
 
 	err = database.Write(ctx, func(tx *bstore.Tx) error {
-		user, err = bstore.QueryTx[User](tx).FilterNonzero(User{Email: email}).Get()
+		user, err = bstore.QueryTx[User](tx).FilterNonzero(User{Email: email.String()}).Get()
 		if err == bstore.ErrAbsent || err == nil && user.VerifyToken != "" {
 			if viaWebsite && config.SignupWebsiteDisabled {
 				return fmt.Errorf("signup via website currently disabled")
@@ -244,6 +250,13 @@ func signup(ctx context.Context, email string, origMessageID string, viaWebsite 
 			if !viaWebsite && config.SignupEmailDisabled {
 				return fmt.Errorf("signup via email currently disabled")
 			}
+
+			lp := string(email.Localpart)
+			lp = strings.ToLower(lp)             // Not likely anyone hands out different accounts with different casing only.
+			lp = strings.SplitN(lp, "+", 2)[0]   // user+$any@domain
+			lp = strings.SplitN(lp, "-", 2)[0]   // user-any@domain
+			lp = strings.ReplaceAll(lp, ".", "") // Gmail.
+			simplifiedEmail := smtp.Address{Localpart: smtp.Localpart(lp), Domain: email.Domain}
 
 			metaUnsubToken := user.MetaUnsubscribeToken
 			if metaUnsubToken == "" {
@@ -259,7 +272,8 @@ func signup(ctx context.Context, email string, origMessageID string, viaWebsite 
 			}
 			user = User{
 				ID:                      user.ID,
-				Email:                   email,
+				Email:                   email.String(),
+				SimplifiedEmail:         simplifiedEmail.String(),
 				VerifyToken:             verifyToken,
 				MetaUnsubscribeToken:    metaUnsubToken,
 				UpdatesUnsubscribeToken: updatesUnsubToken,
@@ -269,6 +283,16 @@ func signup(ctx context.Context, email string, origMessageID string, viaWebsite 
 				xratemeta(tx, user, true)
 				err = tx.Update(&user)
 			} else {
+				if viaWebsite {
+					exists, err := bstore.QueryTx[User](tx).FilterNonzero(User{SimplifiedEmail: user.SimplifiedEmail}).Exists()
+					xcheckf(err, "checking if similar address already has account")
+					if exists {
+						slog.Info("not allowing creation of duplicate simplified user via website", "email", user.Email, "simplifiedemail", user.SimplifiedEmail)
+						// We're not giving feedback that the user already exists.
+						user = User{}
+						return nil
+					}
+				}
 				user.UpdateInterval = IntervalDay
 				err = tx.Insert(&user)
 			}

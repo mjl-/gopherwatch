@@ -1113,7 +1113,7 @@ const overview = async () => {
 	dom._kids(document.body, page);
 };
 const signedup = (email) => {
-	dom._kids(document.body, dom.div(dom._class('page'), dom.h1('Account created'), dom.p("We've sent an email to ", dom.b(email), " with a confirmation link."), dom.p("If the email is not coming in, don't forget to check your spam mailbox. Also, some mail servers employ 'grey listing', holding off first-time deliveries for up to half an hour."), dom.p("Go back ", dom.a(attr.href('#'), 'home', function click() { route(); }), '.')));
+	dom._kids(document.body, dom.div(dom._class('page'), dom.h1('Account created'), dom.p(dom.span("If all is well", attr.title('If you already have an account with essentially the same email address (wildcards removed, etc), you can not create another account via the website, only by sending us a signup email.')), ", we've sent an email to ", dom.b(email), " with a confirmation link."), dom.p("If the email is not coming in, don't forget to check your spam mailbox. Also, some mail servers employ 'grey listing', holding off first-time deliveries for up to half an hour."), dom.p("Go back ", dom.a(attr.href('#'), 'home', function click() { route(); }), '.')));
 };
 const signup = (home) => {
 	let fieldset;
@@ -1128,7 +1128,7 @@ const signup = (home) => {
 		dom.p('Send us an email with "signup for ', home.ServiceName, '" as the subject:'),
 		dom.p(style({ marginLeft: '3em' }), dom.a(attr.href('mailto:' + encodeURIComponent(home.SignupAddress) + '?subject=' + encodeURIComponent('signup for ' + home.ServiceName) + '&body=' + encodeURIComponent('sign me up for gopherwatch!')), home.SignupAddress)),
 		dom.p(`Any message body will do, it's ignored. You'll get a reply with a link to confirm and set a password, after which we'll automatically log you in. Easy.`),
-		home.SignupWebsiteDisabled ? [] : dom.p("Sending us the first email ", dom.span("helps your junk filter realize we're good people.", attr.title(`Because our email address will be a known correspondent in your account. It may also prevent delays in delivery. Hopefully your junk filter will seize the opportunity!`))),
+		home.SignupWebsiteDisabled ? [] : dom.p("Sending us the first email ", dom.span("helps your junk filter realize we're good people.", attr.title(`Because our email address will be a known correspondent in your account. It may also prevent delays in delivery. Hopefully your junk filter will seize the opportunity! On top of that, it will also prevent us from being misused into sending messages to unsuspecting people, because we only reply to messages from legitimate senders (spf/dkim/dmarc-verified). For similar reasons, you can only sign up with wildcard email addresses (like user+$anything@domain) via email and not via the website.`))),
 		dom.br(),
 	], home.SignupWebsiteDisabled ? [] : [
 		home.SignupEmailDisabled ? [] : dom.h2('Option 2: Signup through website'),

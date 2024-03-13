@@ -21,7 +21,10 @@ type User struct {
 	ID int64
 
 	// Cannot be changed, users must create a new account instead. todo: improve
-	Email                string `bstore:"nonzero,unique"`
+	Email string `bstore:"nonzero,unique"`
+	// Like email, but with a simplified localpart to prevent duplicate account signup
+	// attempts through the website.
+	SimplifiedEmail      string `bstore:"index"`
 	SaltedHashedPassword string `json:"-"`
 	PasswordResetToken   string `bstore:"index" json:"-"`
 

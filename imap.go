@@ -359,7 +359,7 @@ func processMessage(imapconn *imapclient.Conn, uid uint32) (problem string, rerr
 		// todo: if we didn't find dmarc=none, we could try looking up the dmarc record and applying it. perhaps good to again evaluate the dmarc record with the spf/dkim details we found: the dmarc policy may have a setting where it applies to fewer than 100% of the messages. we can probably be more strict.
 		authres := msg.Header.Get("Authentication-Results")
 		if authres == "" {
-			return fmt.Sprintf("missing authentication-results in message, cannot validate from address"), nil
+			return "missing authentication-results in message, cannot validate from address", nil
 		}
 		ar, err := message.ParseAuthResults(authres + "\n")
 		if err != nil {
@@ -390,7 +390,7 @@ func processMessage(imapconn *imapclient.Conn, uid uint32) (problem string, rerr
 					good = true
 					break Methods
 				case "fail":
-					return fmt.Sprintf(`message contained a dmarc failure, not responding`), nil
+					return `message contained a dmarc failure, not responding`, nil
 				}
 			case "spf":
 				if am.Result == "pass" {
@@ -429,16 +429,19 @@ func processMessage(imapconn *imapclient.Conn, uid uint32) (problem string, rerr
 			}
 		}
 		if !good {
-			return fmt.Sprintf(`"from" address not aligned-dmarc-verified`), nil
+			return `"from" address not aligned-dmarc-verified`, nil
 		}
 
 		// Message seems legit. Lookup the user. If no account yet, we'll try to create it.
 		// If user exists, we'll send a password reset. Like the regular signup form.
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
-		user, msg, mailFrom, eightbit, smtputf8, m, err := signup(ctx, fromAddr.String(), env.MessageID, false)
+		user, msg, mailFrom, eightbit, smtputf8, m, err := signup(ctx, fromAddr, env.MessageID, false)
 		if err != nil {
 			return fmt.Sprintf("registering signup for user %q: %v", fromAddr.String(), err), nil
+		} else if user.ID == 0 {
+			// Should not happen for email-based signup.
+			return "missing user id after signup", nil
 		}
 
 		// Check if we can send. If not, abort.

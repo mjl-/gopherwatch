@@ -568,40 +568,47 @@ const signup = (home: api.Home) => {
 
 			home.SignupEmailDisabled && home.SignupWebsiteDisabled ? dom.p('Signups are disabled at the moment, sorry.') : [],
 
-			// Only show header if there is a choice.
-			home.SignupEmailDisabled ? [] : [
-				home.SignupWebsiteDisabled ? [] : dom.h2('Option 1: Signup through email (preferred option)'),
-				dom.p('Send us an email with "signup for ', home.ServiceName, '" as the subject:'),
-				dom.p(style({marginLeft: '3em'}), dom.a(attr.href('mailto:'+encodeURIComponent(home.SignupAddress)+'?subject='+encodeURIComponent('signup for '+home.ServiceName) + '&body='+encodeURIComponent('sign me up for gopherwatch!')), home.SignupAddress)),
-				dom.p(`Any message body will do, it's ignored. You'll get a reply with a link to confirm and set a password, after which we'll automatically log you in. Easy.`),
-				home.SignupWebsiteDisabled ? [] : dom.p("Sending us the first email ", dom.span("helps your junk filter realize we're good people.", attr.title(`Because our email address will be a known correspondent in your account. It may also prevent delays in delivery. Hopefully your junk filter will seize the opportunity! On top of that, it will also prevent us from being misused into sending messages to unsuspecting people, because we only reply to messages from legitimate senders (spf/dkim/dmarc-verified). For similar reasons, you can only sign up with wildcard email addresses (like user+$anything@domain) via email and not via the website.`))),
-				dom.br(),
-			],
-
-			home.SignupWebsiteDisabled ? [] : [
-				home.SignupEmailDisabled ? [] : dom.h2('Option 2: Signup through website'),
-				dom.form(
-					async function submit(e: SubmitEvent) {
-						e.stopPropagation()
-						e.preventDefault()
-
-						await check(fieldset, async () => {
-							await client.Signup(email!.value.trim())
-							signedup(email!.value.trim())
-						})
-					},
-					fieldset=dom.fieldset(
-						dom.label(
-							style({display: 'inline'}),
-							'Email address', ' ',
-							email=dom.input(attr.type('email'), attr.required('')),
-						),
-						' ',
-						dom.submitbutton('Create account'),
+			dom.div(dom._class('signupoptions'),
+				home.SignupEmailDisabled ? [] : [
+					dom.div(
+						// Only show header if there is a choice.
+						home.SignupWebsiteDisabled ? [] : dom.h2('Option 1: Signup through email (recommended option)'),
+						dom.p('Send us an email with "signup for ', home.ServiceName, '" as the subject:'),
+						dom.p(style({marginLeft: '3em'}), dom.a(attr.href('mailto:'+encodeURIComponent(home.SignupAddress)+'?subject='+encodeURIComponent('signup for '+home.ServiceName) + '&body='+encodeURIComponent('sign me up for gopherwatch!')), home.SignupAddress)),
+						dom.p(`Any message body will do, it's ignored. You'll get a reply with a link to confirm and set a password, after which we'll automatically log you in. Easy.`),
+						home.SignupWebsiteDisabled ? [] : dom.p("Sending us the first email ", dom.span("helps your junk filter realize we're good people.", attr.title(`Because our email address will be a known correspondent in your account. It may also prevent delays in delivery. Hopefully your junk filter will seize the opportunity! On top of that, it will also prevent us from being misused into sending messages to unsuspecting people, because we only reply to messages from legitimate senders (spf/dkim/dmarc-verified). For similar reasons, you can only sign up with wildcard email addresses (like user+$anything@domain) via email and not via the website.`))),
+						dom.br(),
 					),
-					dom.p("We'll send you an email with a confirmation link."),
-				)
-			],
+				],
+
+				home.SignupWebsiteDisabled ? [] : [
+					dom.div(
+						home.SignupEmailDisabled ? [] : dom.h2('Option 2: Signup through website (fallback option)'),
+						dom.p('Please have a look at signing up with option 1 first.'),
+						dom.form(
+							async function submit(e: SubmitEvent) {
+								e.stopPropagation()
+								e.preventDefault()
+
+								await check(fieldset, async () => {
+									await client.Signup(email!.value.trim())
+									signedup(email!.value.trim())
+								})
+							},
+							fieldset=dom.fieldset(
+								dom.label(
+									style({display: 'inline'}),
+									'Email address', ' ',
+									email=dom.input(attr.type('email'), attr.required('')),
+								),
+								' ',
+								dom.submitbutton('Create account'),
+							),
+							dom.p("We'll send you an email with a confirmation link."),
+						)
+					),
+				],
+			),
 		)
 	)
 	if (email && home.SignupEmailDisabled) {

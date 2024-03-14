@@ -204,7 +204,7 @@ const reinitClient = () => {
 }
 reinitClient()
 
-const subscriptionPopup = (sub: api.Subscription, subscriptions: api.Subscription[], render: () => void) => {
+const subscriptionPopup = (sub: api.Subscription, subscriptions: api.Subscription[], hookconfigs: api.HookConfig[], render: () => void) => {
 	let fieldset: HTMLFieldSetElement
 	let module: HTMLInputElement
 	let gomod: HTMLTextAreaElement
@@ -215,6 +215,7 @@ const subscriptionPopup = (sub: api.Subscription, subscriptions: api.Subscriptio
 	let pseudo: HTMLInputElement
 	let prerelease: HTMLInputElement
 	let comment: HTMLTextAreaElement
+	let webhookconfig: HTMLSelectElement
 	let submitbtn: HTMLButtonElement
 
 	const close = popup(
@@ -232,6 +233,7 @@ const subscriptionPopup = (sub: api.Subscription, subscriptions: api.Subscriptio
 					Pseudo: pseudo.checked,
 					Prerelease: prerelease.checked,
 					Comment: comment.value,
+					HookConfigID: parseInt(webhookconfig.value),
 				}
 
 				await check(fieldset, async () => {
@@ -246,6 +248,7 @@ const subscriptionPopup = (sub: api.Subscription, subscriptions: api.Subscriptio
 							Pseudo: pseudo.checked,
 							Prerelease: prerelease.checked,
 							Comment: comment.value,
+							HookConfigID: parseInt(webhookconfig.value),
 							Indirect: indirect.checked,
 						}
 						const subs = await client.SubscriptionImport(imp)
@@ -301,6 +304,16 @@ const subscriptionPopup = (sub: api.Subscription, subscriptions: api.Subscriptio
 					comment=dom.textarea(new String(sub.Comment)),
 				),
 				dom.br(),
+				dom.label(
+					'Delivery method',
+					dom.div(
+						webhookconfig=dom.select(
+							dom.option('Email', attr.value('0')),
+							hookconfigs.map(hc => dom.option('Webhook '+hc.Name, attr.value(''+hc.ID), sub.HookConfigID === hc.ID ? attr.selected('') : [])),
+						),
+					),
+				),
+				dom.br(),
 				dom.div(submitbtn=dom.submitbutton(sub.ID ? 'Save subscription' : 'Add subscription')),
 			),
 		)
@@ -308,17 +321,148 @@ const subscriptionPopup = (sub: api.Subscription, subscriptions: api.Subscriptio
 	module.focus()
 }
 
+const hookconfigPopup = (hc: api.HookConfig, hookconfigs: api.HookConfig[], render: () => void) => {
+	let fieldset: HTMLFieldSetElement
+	let name: HTMLInputElement
+	let url: HTMLInputElement
+	let headers: HTMLTextAreaElement
+	let disabled: HTMLInputElement
+
+	const close = popup(
+		dom.h1(hc.ID ? 'Edit webhook config' : 'New webhook config'),
+		dom.form(
+			async function submit(e: SubmitEvent) {
+				e.stopPropagation()
+				e.preventDefault()
+
+				await check(fieldset, async () => {
+					const parsedHeaders = headers.value.split('\n')
+						.map(s => s.split(':', 2))
+						.filter(tup => tup.length === 2)
+						.map(tup => [tup[0].trim(), tup[1].trim()])
+						.filter(tup => tup[0] && tup[1])
+
+					let nhc: api.HookConfig = {
+						ID: hc.ID,
+						UserID: hc.UserID,
+						Name: name.value,
+						URL: url.value,
+						Headers: parsedHeaders,
+						Disabled: disabled.checked,
+					}
+
+					if (hc.ID) {
+						await client.HookConfigSave(nhc)
+						hookconfigs.splice(hookconfigs.indexOf(hc), 1, nhc)
+					} else {
+						const xhc = await client.HookConfigAdd(nhc)
+						hookconfigs.push(xhc)
+					}
+					render()
+					close()
+				})
+			},
+			fieldset=dom.fieldset(
+				dom.label(
+					'Name',
+					name=dom.input(attr.required(''), attr.value(hc.Name)),
+					dom.div(dom._class('explain'), 'Short unique name to identify webhook config.'),
+				),
+				dom.label(
+					'URL',
+					url=dom.input(attr.required(''), attr.value(hc.URL)),
+					dom.div(
+						dom._class('explain'),
+						'URL to POST JSON body with updates to. ',
+						dom.a(attr.href('#'), 'Details', function click(e: MouseEvent) {
+							e.preventDefault()
+							popup(
+								style({maxWidth: '50em'}),
+								dom.h1('Webhook HTTP requests'),
+								dom.p('The request is a POST with a JSON body with the fields "Module", "Version", "Discovered" (timestamp) and "LogRecordID" (record ID in the sum database). More fields will likely be added in the future, so you should expect and allow for new fields to appear.'),
+								dom.h2('Example JSON body'),
+								dom.pre(dom._class('mono'), style({padding: '1em', backgroundColor: '#eee', borderRadius: '.5em'}), JSON.stringify({Module: 'github.com/mjl-/gopherwatch', Version: 'v0.0.1', Discovered: '2024-03-14T10:21:45.159Z', LogRecordID: 23637553}, undefined, '\t')),
+								dom.br(),
+								dom.p('Requests have to finish in 30 seconds. At most 256 bytes of the response is read. Any 2xx response status code is considered success. Redirects are followed. Any other response status code is considered an error and a retry is scheduled. Retries are scheduled with expontential backoff, starting at 7.5 minutes, then 15 minutes, 30 minutes, etc. Up to 9 retries, the last interval is 16 hours. However, a response status code of "403 forbidden" prevents further retries. If a "429 Too many requests" response is received for a webhook config, no new request is made for one minute after that response.'),
+								dom.p('If deliveries keep failing (after retries), the webhook config is disabled: If the 10 most recent deliveries all failed, or if all of the deliveries of the past week failed (and there were at least 2). You can manually enable the webhook config again.'),
+							)
+						}),
+					),
+				),
+				dom.br(),
+				dom.label(
+					'Headers',
+					headers=dom.textarea(
+						new String(
+							(hc.Headers || []).map(tup => ((tup || [])[0])+': '+((tup || [])[1] || '')).join('\n')),
+						attr.rows(''+(Math.max(5, (hc.Headers || []).length))),
+					),
+					dom.div(dom._class('explain'), 'Add custom headers to the request. Specify them in the form "key: value", one per line. Empty and malformed lines are removed, whitespace around keys and values is trimmed. Headers User-Agent and Content-Type are automatically set in all outgoing requests.'),
+				),
+				dom.br(),
+				dom.label(
+					disabled=dom.input(attr.type('checkbox'), hc.Disabled ? attr.checked('') : []),
+					' Disabled, no new webhook calls are made',
+				),
+				dom.br(),
+				dom.div(dom.submitbutton(hc.ID ? 'Save webhook config' : 'Add webhook config')),
+			),
+		)
+	)
+	name.focus()
+}
+
+const hookPopup = (rh: api.UpdateHook) => {
+	// todo: show curl request that is equivalent to what we do. to help with debugging.
+
+	const h = rh.Hook
+	popup(
+		dom.h1('Webhook delivery'),
+		dom.div('Queued on ', h.Queued.toString(), '.'),
+		dom.div('For module ', rh.Update.Module, ', version ', rh.Update.Version, '.'),
+		dom.div('HTTP POST to ', h.URL, '.'),
+
+		dom.h2('Results'),
+		dom.table(
+			dom.thead(
+				dom.tr(
+					dom.th('Start'),
+					dom.th('Duration'),
+					dom.th('Status'),
+					dom.th('Error'),
+					dom.th('Response'),
+				),
+			),
+			dom.tbody(
+				(h.Results || []).map(r => dom.tr(
+					dom.td(age(r.Start), ' ago'),
+					dom.td(''+r.DurationMS+'ms'),
+					dom.td('' + (r.StatusCode || '-')),
+					dom.td(r.Error),
+					dom.td(r.Response),
+				)),
+			),
+		),
+	)
+}
+
 const overview = async () => {
 	const overview = await client.Overview()
 	let subscriptions: api.Subscription[] = overview.Subscriptions || []
+	let hookconfigs: api.HookConfig[] = overview.HookConfigs || []
 	let moduleUpdates: api.ModuleUpdateURLs[] = overview.ModuleUpdates || []
+	let recentHooks: api.UpdateHook[] = overview.RecentHooks || []
 
 	let substbody: HTMLElement
+	let hookconfigstbody: HTMLElement
 	let moduptbody: HTMLElement
+	let hookstbody: HTMLElement
+
+	// todo: SSE for updates to email/webhook deliveries in web interface.
 
 	const render = () => {
 		const nsubs = dom.tbody(
-			subscriptions.length === 0 ? dom.tr(dom.td(attr.colspan('7'), 'No subscriptions yet, add the first one!')) : [],
+			subscriptions.length === 0 ? dom.tr(dom.td(attr.colspan('8'), 'No subscriptions yet, add the first one!')) : [],
 			subscriptions.map(sub => {
 				const row = dom.tr(
 					(overview.SkipModulePaths || []).includes(sub.Module) ? [
@@ -332,9 +476,10 @@ const overview = async () => {
 					dom.td(sub.OlderVersions ? 'Yes' : 'No'),
 					dom.td(sub.Prerelease ? 'Yes' : 'No'),
 					dom.td(sub.Pseudo ? 'Yes' : 'No'),
+					dom.td(sub.HookConfigID === 0 ? 'Email' : 'Webhook '+hookconfigs.find(hc => hc.ID === sub.HookConfigID)!.Name),
 					dom.td(style({maxWidth: '40em'}), sub.Comment),
 					dom.td(
-						dom.clickbutton('Edit', function click() { subscriptionPopup(sub, subscriptions, render) }), ' ',
+						dom.clickbutton('Edit', function click() { subscriptionPopup(sub, subscriptions, hookconfigs, render) }), ' ',
 						dom.clickbutton('Remove', async function click(e: MouseEvent) {
 							if (!window.confirm('Are you sure?')) {
 								return
@@ -354,21 +499,105 @@ const overview = async () => {
 		substbody = nsubs
 
 		const nmodups = dom.tbody(
-			moduleUpdates.length === 0 ? dom.tr(dom.td(attr.colspan('5'), 'No module updates.')) : [],
+			moduleUpdates.length === 0 ? dom.tr(dom.td(attr.colspan('6'), 'No module updates.')) : [],
 			moduleUpdates.map(modup => {
 				const link = (anchor: string, url: string) => dom.a(attr.href(url), anchor, attr.rel('noopener'))
 				const row = dom.tr(
 					dom.td(link(modup.Module, modup.RepoURL || 'https://'+modup.Module)),
 					dom.td(modup.TagURL ? link(modup.Version, modup.TagURL) : modup.Version),
-					dom.td(modup.MessageID ? 'Yes' : 'No'),
 					dom.td(modup.Discovered ? age(modup.Discovered) : []),
 					dom.td(modup.DocURL ? link('Doc', modup.DocURL) : []),
+					dom.td(modup.HookConfigID ? ('Webhook '+(hookconfigs.find(hc => hc.ID === modup.HookConfigID)?.Name || '(not found)')) : 'Email'),
+					dom.td(modup.MessageID ? 'Yes' : 'No'),
 				)
 				return row
 			}),
 		)
 		moduptbody.replaceWith(nmodups)
 		moduptbody = nmodups
+
+		const nhookconfigs = dom.tbody(
+			hookconfigs.length === 0 ? dom.tr(dom.td(attr.colspan('4'), 'No webhook configs yet, add the first one!')) : [],
+			hookconfigs.map(hc => {
+				const row = dom.tr(
+					dom.td(hc.Name),
+					dom.td(hc.URL),
+					dom.td(hc.Disabled ? 'Yes' : 'No'),
+					dom.td(
+						dom.clickbutton('Edit', function click() { hookconfigPopup(hc, hookconfigs, render) }), ' ',
+						dom.clickbutton('Remove', async function click(e: MouseEvent) {
+							if (!window.confirm('Are you sure?')) {
+								return
+							}
+							await check(e.target! as HTMLButtonElement, async () => {
+								await client.HookConfigRemove(hc.ID)
+								hookconfigs.splice(hookconfigs.indexOf(hc), 1)
+
+								for (let i = 0; i < recentHooks.length;) {
+									if (recentHooks[i].Hook.HookConfigID === hc.ID) {
+										recentHooks.splice(i, 1)
+									} else {
+										i++
+									}
+								}
+
+								render()
+							})
+						}),
+					),
+				)
+				return row
+			}),
+		)
+		hookconfigstbody.replaceWith(nhookconfigs)
+		hookconfigstbody = nhookconfigs
+
+		const nhooks = dom.tbody(
+			recentHooks.length === 0 ? dom.tr(dom.td(attr.colspan('7'), 'No webhook calls yet!')) : [],
+			recentHooks.map(rh => {
+				const h = rh.Hook
+				let lastResult: api.HookResult | undefined
+				if (h.Results && h.Results.length > 0) {
+					lastResult = h.Results[h.Results.length-1]
+				}
+				const row = dom.tr(
+					dom.td(hookconfigs.find(hc => hc.ID === h.HookConfigID)?.Name || ''),
+					dom.td(rh.Update.Module),
+					dom.td(rh.Update.Version),
+					dom.td(''+h.Attempts),
+					dom.td(h.Done ? '-' : age(h.NextAttempt, true)),
+					dom.td(
+						!lastResult ? '-' : [
+							''+(lastResult.StatusCode || ''),
+							' ',
+							lastResult.Error,
+						],
+					),
+					dom.td(
+						dom.clickbutton('Results', (h.Results || []).length === 0 ? attr.disabled('') : [], function click() {
+							hookPopup(rh)
+						}), ' ',
+						dom.clickbutton('Cancel', h.Done ? attr.disabled('') : [], async function click(e: MouseEvent) {
+							await check(e.target! as HTMLButtonElement, async () => {
+								const nh = await client.HookCancel(h.ID)
+								recentHooks.splice(recentHooks.indexOf(rh), 1, {Update: rh.Update, Hook: nh})
+								render()
+							})
+						}), ' ',
+						dom.clickbutton('Kick', attr.title('Schedule next attempt as soon as possible'), h.Done ? attr.disabled('') : [], async function click(e: MouseEvent) {
+							await check(e.target! as HTMLButtonElement, async () => {
+								const nh = await client.HookKick(h.ID)
+								recentHooks.splice(recentHooks.indexOf(rh), 1, {Update: rh.Update, Hook: nh})
+								render()
+							})
+						}),
+					),
+				)
+				return row
+			}),
+		)
+		hookstbody.replaceWith(nhooks)
+		hookstbody = nhooks
 	}
 
 	let intervalFieldset: HTMLFieldSetElement
@@ -408,8 +637,9 @@ const overview = async () => {
 					Prerelease: false,
 					Pseudo: false,
 					Comment: '',
+					HookConfigID: 0,
 				}
-				subscriptionPopup(nsub, subscriptions, render)
+				subscriptionPopup(nsub, subscriptions, hookconfigs, render)
 			}),
 		),
 		dom.br(),
@@ -420,10 +650,37 @@ const overview = async () => {
 				dom.th('Older versions'),
 				dom.th('Prereleases'),
 				dom.th('Pseudo versions'),
+				dom.th('Delivery method'),
 				dom.th('Comment'),
 				dom.th('Action'),
 			),
 			substbody=dom.tbody(),
+		),
+		dom.br(),
+
+		dom.div(
+			dom.h2(style({display: 'inline-block'}), 'Webhook configs'), ' ',
+			dom.clickbutton('Add', function click() {
+				const nhc: api.HookConfig = {
+					ID: 0,
+					UserID: 0,
+					Name: '',
+					URL: '',
+					Headers: [],
+					Disabled: false
+				}
+				hookconfigPopup(nhc, hookconfigs, render)
+			}),
+		),
+		dom.br(),
+		dom.table(
+			dom.tr(
+				dom.th('Name'),
+				dom.th('URL'),
+				dom.th('Disabled'),
+				dom.th('Action'),
+			),
+			hookconfigstbody=dom.tbody(),
 		),
 		dom.br(),
 
@@ -503,11 +760,27 @@ const overview = async () => {
 			dom.tr(
 				dom.th('Module', attr.title('Repo URLs are guesses and may be wrong.')),
 				dom.th('Version', attr.title('Tag URLs are guesses and may be wrong.')),
-				dom.th('Notified'),
 				dom.th('Age'),
 				dom.th('Docs', attr.title('Doc URLs are guesses and may be wrong.')),
+				dom.th('Delivery method'),
+				dom.th('Notified by email'),
 			),
 			moduptbody=dom.tbody(),
+		),
+		dom.br(),
+
+		dom.h2('Webhook deliveries'),
+		dom.table(
+			dom.tr(
+				dom.th('Webhook config'),
+				dom.th('Module'),
+				dom.th('Version'),
+				dom.th('Attempts'),
+				dom.th('Next attempt'),
+				dom.th('Last result'),
+				dom.th('Action'),
+			),
+			hookstbody=dom.tbody(),
 		),
 		dom.br(),
 
@@ -616,9 +889,12 @@ const signup = (home: api.Home) => {
 	}
 }
 
-const age = (date: Date) => {
+const age = (date: Date, future?: boolean) => {
 	const nowSecs = new Date().getTime()/1000
 	let t = nowSecs - date.getTime()/1000
+	if (future) {
+		t = -t
+	}
 	let negative = ''
 	if (t < 0) {
 		negative = '-'

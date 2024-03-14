@@ -10,15 +10,20 @@ var api;
 		Interval["IntervalDay"] = "day";
 		Interval["IntervalWeek"] = "week";
 	})(Interval = api.Interval || (api.Interval = {}));
-	api.structTypes = { "Home": true, "ModuleUpdateURLs": true, "Overview": true, "Recent": true, "Subscription": true, "SubscriptionImport": true, "UserLog": true };
+	api.structTypes = { "Home": true, "Hook": true, "HookConfig": true, "HookResult": true, "ModuleUpdate": true, "ModuleUpdateURLs": true, "Overview": true, "Recent": true, "Subscription": true, "SubscriptionImport": true, "UpdateHook": true, "UserLog": true };
 	api.stringsTypes = { "Interval": true };
 	api.intsTypes = {};
 	api.types = {
-		"Overview": { "Name": "Overview", "Docs": "", "Fields": [{ "Name": "Email", "Docs": "", "Typewords": ["string"] }, { "Name": "UpdateInterval", "Docs": "", "Typewords": ["Interval"] }, { "Name": "MetaUnsubscribed", "Docs": "", "Typewords": ["bool"] }, { "Name": "UpdatesUnsubscribed", "Docs": "", "Typewords": ["bool"] }, { "Name": "Backoff", "Docs": "", "Typewords": ["string"] }, { "Name": "BackoffUntil", "Docs": "", "Typewords": ["timestamp"] }, { "Name": "SkipModulePaths", "Docs": "", "Typewords": ["[]", "string"] }, { "Name": "Subscriptions", "Docs": "", "Typewords": ["[]", "Subscription"] }, { "Name": "ModuleUpdates", "Docs": "", "Typewords": ["[]", "ModuleUpdateURLs"] }, { "Name": "UserLogs", "Docs": "", "Typewords": ["[]", "UserLog"] }] },
-		"Subscription": { "Name": "Subscription", "Docs": "", "Fields": [{ "Name": "ID", "Docs": "", "Typewords": ["int64"] }, { "Name": "Module", "Docs": "", "Typewords": ["string"] }, { "Name": "BelowModule", "Docs": "", "Typewords": ["bool"] }, { "Name": "OlderVersions", "Docs": "", "Typewords": ["bool"] }, { "Name": "Prerelease", "Docs": "", "Typewords": ["bool"] }, { "Name": "Pseudo", "Docs": "", "Typewords": ["bool"] }, { "Name": "Comment", "Docs": "", "Typewords": ["string"] }] },
-		"ModuleUpdateURLs": { "Name": "ModuleUpdateURLs", "Docs": "", "Fields": [{ "Name": "ID", "Docs": "", "Typewords": ["int64"] }, { "Name": "UserID", "Docs": "", "Typewords": ["int64"] }, { "Name": "SubscriptionID", "Docs": "", "Typewords": ["int64"] }, { "Name": "LogRecordID", "Docs": "", "Typewords": ["int64"] }, { "Name": "Discovered", "Docs": "", "Typewords": ["timestamp"] }, { "Name": "Module", "Docs": "", "Typewords": ["string"] }, { "Name": "Version", "Docs": "", "Typewords": ["string"] }, { "Name": "MessageID", "Docs": "", "Typewords": ["int64"] }, { "Name": "RepoURL", "Docs": "", "Typewords": ["string"] }, { "Name": "TagURL", "Docs": "", "Typewords": ["string"] }, { "Name": "DocURL", "Docs": "", "Typewords": ["string"] }] },
+		"Overview": { "Name": "Overview", "Docs": "", "Fields": [{ "Name": "Email", "Docs": "", "Typewords": ["string"] }, { "Name": "UpdateInterval", "Docs": "", "Typewords": ["Interval"] }, { "Name": "MetaUnsubscribed", "Docs": "", "Typewords": ["bool"] }, { "Name": "UpdatesUnsubscribed", "Docs": "", "Typewords": ["bool"] }, { "Name": "Backoff", "Docs": "", "Typewords": ["string"] }, { "Name": "BackoffUntil", "Docs": "", "Typewords": ["timestamp"] }, { "Name": "SkipModulePaths", "Docs": "", "Typewords": ["[]", "string"] }, { "Name": "Subscriptions", "Docs": "", "Typewords": ["[]", "Subscription"] }, { "Name": "ModuleUpdates", "Docs": "", "Typewords": ["[]", "ModuleUpdateURLs"] }, { "Name": "HookConfigs", "Docs": "", "Typewords": ["[]", "HookConfig"] }, { "Name": "RecentHooks", "Docs": "", "Typewords": ["[]", "UpdateHook"] }, { "Name": "UserLogs", "Docs": "", "Typewords": ["[]", "UserLog"] }] },
+		"Subscription": { "Name": "Subscription", "Docs": "", "Fields": [{ "Name": "ID", "Docs": "", "Typewords": ["int64"] }, { "Name": "Module", "Docs": "", "Typewords": ["string"] }, { "Name": "BelowModule", "Docs": "", "Typewords": ["bool"] }, { "Name": "OlderVersions", "Docs": "", "Typewords": ["bool"] }, { "Name": "Prerelease", "Docs": "", "Typewords": ["bool"] }, { "Name": "Pseudo", "Docs": "", "Typewords": ["bool"] }, { "Name": "Comment", "Docs": "", "Typewords": ["string"] }, { "Name": "HookConfigID", "Docs": "", "Typewords": ["int64"] }] },
+		"ModuleUpdateURLs": { "Name": "ModuleUpdateURLs", "Docs": "", "Fields": [{ "Name": "ID", "Docs": "", "Typewords": ["int64"] }, { "Name": "UserID", "Docs": "", "Typewords": ["int64"] }, { "Name": "SubscriptionID", "Docs": "", "Typewords": ["int64"] }, { "Name": "LogRecordID", "Docs": "", "Typewords": ["int64"] }, { "Name": "Discovered", "Docs": "", "Typewords": ["timestamp"] }, { "Name": "Module", "Docs": "", "Typewords": ["string"] }, { "Name": "Version", "Docs": "", "Typewords": ["string"] }, { "Name": "MessageID", "Docs": "", "Typewords": ["int64"] }, { "Name": "HookID", "Docs": "", "Typewords": ["int64"] }, { "Name": "HookConfigID", "Docs": "", "Typewords": ["int64"] }, { "Name": "RepoURL", "Docs": "", "Typewords": ["string"] }, { "Name": "TagURL", "Docs": "", "Typewords": ["string"] }, { "Name": "DocURL", "Docs": "", "Typewords": ["string"] }] },
+		"HookConfig": { "Name": "HookConfig", "Docs": "", "Fields": [{ "Name": "ID", "Docs": "", "Typewords": ["int64"] }, { "Name": "UserID", "Docs": "", "Typewords": ["int64"] }, { "Name": "Name", "Docs": "", "Typewords": ["string"] }, { "Name": "URL", "Docs": "", "Typewords": ["string"] }, { "Name": "Headers", "Docs": "", "Typewords": ["[]", "[]", "string"] }, { "Name": "Disabled", "Docs": "", "Typewords": ["bool"] }] },
+		"UpdateHook": { "Name": "UpdateHook", "Docs": "", "Fields": [{ "Name": "Update", "Docs": "", "Typewords": ["ModuleUpdate"] }, { "Name": "Hook", "Docs": "", "Typewords": ["Hook"] }] },
+		"ModuleUpdate": { "Name": "ModuleUpdate", "Docs": "", "Fields": [{ "Name": "ID", "Docs": "", "Typewords": ["int64"] }, { "Name": "UserID", "Docs": "", "Typewords": ["int64"] }, { "Name": "SubscriptionID", "Docs": "", "Typewords": ["int64"] }, { "Name": "LogRecordID", "Docs": "", "Typewords": ["int64"] }, { "Name": "Discovered", "Docs": "", "Typewords": ["timestamp"] }, { "Name": "Module", "Docs": "", "Typewords": ["string"] }, { "Name": "Version", "Docs": "", "Typewords": ["string"] }, { "Name": "MessageID", "Docs": "", "Typewords": ["int64"] }, { "Name": "HookID", "Docs": "", "Typewords": ["int64"] }, { "Name": "HookConfigID", "Docs": "", "Typewords": ["int64"] }] },
+		"Hook": { "Name": "Hook", "Docs": "", "Fields": [{ "Name": "ID", "Docs": "", "Typewords": ["int64"] }, { "Name": "UserID", "Docs": "", "Typewords": ["int64"] }, { "Name": "HookConfigID", "Docs": "", "Typewords": ["int64"] }, { "Name": "URL", "Docs": "", "Typewords": ["string"] }, { "Name": "Queued", "Docs": "", "Typewords": ["timestamp"] }, { "Name": "LastResult", "Docs": "", "Typewords": ["timestamp"] }, { "Name": "Attempts", "Docs": "", "Typewords": ["int32"] }, { "Name": "NextAttempt", "Docs": "", "Typewords": ["timestamp"] }, { "Name": "Done", "Docs": "", "Typewords": ["bool"] }, { "Name": "Results", "Docs": "", "Typewords": ["[]", "HookResult"] }] },
+		"HookResult": { "Name": "HookResult", "Docs": "", "Fields": [{ "Name": "StatusCode", "Docs": "", "Typewords": ["int32"] }, { "Name": "Error", "Docs": "", "Typewords": ["string"] }, { "Name": "Response", "Docs": "", "Typewords": ["string"] }, { "Name": "Start", "Docs": "", "Typewords": ["timestamp"] }, { "Name": "DurationMS", "Docs": "", "Typewords": ["int64"] }] },
 		"UserLog": { "Name": "UserLog", "Docs": "", "Fields": [{ "Name": "ID", "Docs": "", "Typewords": ["int64"] }, { "Name": "UserID", "Docs": "", "Typewords": ["int64"] }, { "Name": "Time", "Docs": "", "Typewords": ["timestamp"] }, { "Name": "Text", "Docs": "", "Typewords": ["string"] }] },
-		"SubscriptionImport": { "Name": "SubscriptionImport", "Docs": "", "Fields": [{ "Name": "GoMod", "Docs": "", "Typewords": ["string"] }, { "Name": "BelowModule", "Docs": "", "Typewords": ["bool"] }, { "Name": "OlderVersions", "Docs": "", "Typewords": ["bool"] }, { "Name": "Prerelease", "Docs": "", "Typewords": ["bool"] }, { "Name": "Pseudo", "Docs": "", "Typewords": ["bool"] }, { "Name": "Comment", "Docs": "", "Typewords": ["string"] }, { "Name": "Indirect", "Docs": "", "Typewords": ["bool"] }] },
+		"SubscriptionImport": { "Name": "SubscriptionImport", "Docs": "", "Fields": [{ "Name": "GoMod", "Docs": "", "Typewords": ["string"] }, { "Name": "BelowModule", "Docs": "", "Typewords": ["bool"] }, { "Name": "OlderVersions", "Docs": "", "Typewords": ["bool"] }, { "Name": "Prerelease", "Docs": "", "Typewords": ["bool"] }, { "Name": "Pseudo", "Docs": "", "Typewords": ["bool"] }, { "Name": "Comment", "Docs": "", "Typewords": ["string"] }, { "Name": "HookConfigID", "Docs": "", "Typewords": ["int64"] }, { "Name": "Indirect", "Docs": "", "Typewords": ["bool"] }] },
 		"Home": { "Name": "Home", "Docs": "", "Fields": [{ "Name": "Version", "Docs": "", "Typewords": ["string"] }, { "Name": "GoVersion", "Docs": "", "Typewords": ["string"] }, { "Name": "GoOS", "Docs": "", "Typewords": ["string"] }, { "Name": "GoArch", "Docs": "", "Typewords": ["string"] }, { "Name": "ServiceName", "Docs": "", "Typewords": ["string"] }, { "Name": "AdminName", "Docs": "", "Typewords": ["string"] }, { "Name": "AdminEmail", "Docs": "", "Typewords": ["string"] }, { "Name": "Note", "Docs": "", "Typewords": ["string"] }, { "Name": "SignupNote", "Docs": "", "Typewords": ["string"] }, { "Name": "SkipModulePrefixes", "Docs": "", "Typewords": ["[]", "string"] }, { "Name": "SignupEmailDisabled", "Docs": "", "Typewords": ["bool"] }, { "Name": "SignupWebsiteDisabled", "Docs": "", "Typewords": ["bool"] }, { "Name": "SignupAddress", "Docs": "", "Typewords": ["string"] }, { "Name": "Recents", "Docs": "", "Typewords": ["[]", "Recent"] }] },
 		"Recent": { "Name": "Recent", "Docs": "", "Fields": [{ "Name": "Module", "Docs": "", "Typewords": ["string"] }, { "Name": "Version", "Docs": "", "Typewords": ["string"] }, { "Name": "Discovered", "Docs": "", "Typewords": ["timestamp"] }, { "Name": "RepoURL", "Docs": "", "Typewords": ["string"] }, { "Name": "TagURL", "Docs": "", "Typewords": ["string"] }, { "Name": "DocURL", "Docs": "", "Typewords": ["string"] }] },
 		"Interval": { "Name": "Interval", "Docs": "", "Values": [{ "Name": "IntervalImmediate", "Value": "immediate", "Docs": "" }, { "Name": "IntervalHour", "Value": "hour", "Docs": "" }, { "Name": "IntervalDay", "Value": "day", "Docs": "" }, { "Name": "IntervalWeek", "Value": "week", "Docs": "" }] },
@@ -27,6 +32,11 @@ var api;
 		Overview: (v) => api.parse("Overview", v),
 		Subscription: (v) => api.parse("Subscription", v),
 		ModuleUpdateURLs: (v) => api.parse("ModuleUpdateURLs", v),
+		HookConfig: (v) => api.parse("HookConfig", v),
+		UpdateHook: (v) => api.parse("UpdateHook", v),
+		ModuleUpdate: (v) => api.parse("ModuleUpdate", v),
+		Hook: (v) => api.parse("Hook", v),
+		HookResult: (v) => api.parse("HookResult", v),
 		UserLog: (v) => api.parse("UserLog", v),
 		SubscriptionImport: (v) => api.parse("SubscriptionImport", v),
 		Home: (v) => api.parse("Home", v),
@@ -247,6 +257,41 @@ var api;
 			const paramTypes = [["string"], ["string"], ["string"]];
 			const returnTypes = [];
 			const params = [secret, kind, email];
+			return await _sherpaCall(this.baseURL, this.authState, { ...this.options }, paramTypes, returnTypes, fn, params);
+		}
+		async HookConfigAdd(hc) {
+			const fn = "HookConfigAdd";
+			const paramTypes = [["HookConfig"]];
+			const returnTypes = [["HookConfig"]];
+			const params = [hc];
+			return await _sherpaCall(this.baseURL, this.authState, { ...this.options }, paramTypes, returnTypes, fn, params);
+		}
+		async HookConfigSave(hc) {
+			const fn = "HookConfigSave";
+			const paramTypes = [["HookConfig"]];
+			const returnTypes = [];
+			const params = [hc];
+			return await _sherpaCall(this.baseURL, this.authState, { ...this.options }, paramTypes, returnTypes, fn, params);
+		}
+		async HookConfigRemove(hcID) {
+			const fn = "HookConfigRemove";
+			const paramTypes = [["int64"]];
+			const returnTypes = [];
+			const params = [hcID];
+			return await _sherpaCall(this.baseURL, this.authState, { ...this.options }, paramTypes, returnTypes, fn, params);
+		}
+		async HookCancel(hID) {
+			const fn = "HookCancel";
+			const paramTypes = [["int64"]];
+			const returnTypes = [["Hook"]];
+			const params = [hID];
+			return await _sherpaCall(this.baseURL, this.authState, { ...this.options }, paramTypes, returnTypes, fn, params);
+		}
+		async HookKick(hID) {
+			const fn = "HookKick";
+			const paramTypes = [["int64"]];
+			const returnTypes = [["Hook"]];
+			const params = [hID];
 			return await _sherpaCall(this.baseURL, this.authState, { ...this.options }, paramTypes, returnTypes, fn, params);
 		}
 	}
@@ -951,7 +996,7 @@ const reinitClient = () => {
 	client = new api.Client().withOptions({ csrfHeader: 'x-csrf', login: login }).withAuthToken(localStorageGet('gopherwatchcsrftoken') || '');
 };
 reinitClient();
-const subscriptionPopup = (sub, subscriptions, render) => {
+const subscriptionPopup = (sub, subscriptions, hookconfigs, render) => {
 	let fieldset;
 	let module;
 	let gomod;
@@ -962,6 +1007,7 @@ const subscriptionPopup = (sub, subscriptions, render) => {
 	let pseudo;
 	let prerelease;
 	let comment;
+	let webhookconfig;
 	let submitbtn;
 	const close = popup(dom.h1(sub.ID ? 'Edit subscription' : 'New subscription'), dom.form(async function submit(e) {
 		e.stopPropagation();
@@ -974,6 +1020,7 @@ const subscriptionPopup = (sub, subscriptions, render) => {
 			Pseudo: pseudo.checked,
 			Prerelease: prerelease.checked,
 			Comment: comment.value,
+			HookConfigID: parseInt(webhookconfig.value),
 		};
 		await check(fieldset, async () => {
 			if (sub.ID) {
@@ -988,6 +1035,7 @@ const subscriptionPopup = (sub, subscriptions, render) => {
 					Pseudo: pseudo.checked,
 					Prerelease: prerelease.checked,
 					Comment: comment.value,
+					HookConfigID: parseInt(webhookconfig.value),
 					Indirect: indirect.checked,
 				};
 				const subs = await client.SubscriptionImport(imp);
@@ -1012,21 +1060,71 @@ const subscriptionPopup = (sub, subscriptions, render) => {
 		module.value = module.value.replace(/\/*$/, '');
 	}), dom.div(dom._class('explain'), 'Enter a single module as you would use in a Go import statement.', dom.br(), 'Example: github.com/mjl-/gopherwatch, github.com/mjl- or golang.org.'))), dom.br(), dom.b('Notify about ...'), dom.label(belowModule = dom.input(attr.type('checkbox'), sub.BelowModule ? attr.checked('') : []), ' ', dom.span('Sub modules', attr.title('E.g. if subscribed to github.com/mjl-, whether to match github.com/mjl-/gopherwatch.'))), dom.label(olderVersions = dom.input(attr.type('checkbox'), sub.OlderVersions ? attr.checked('') : []), ' ', dom.span('Older versions than already seen', attr.title('Can happen when an old version (tag) is requested through the Go module proxy after a later tag, not uncommon after forking a repository and pushing all historic tags.'))), dom.label(prerelease = dom.input(attr.type('checkbox'), sub.Prerelease ? attr.checked('') : []), ' Prereleases such as v1.2.3-beta1'), dom.label(pseudo = dom.input(attr.type('checkbox'), sub.Pseudo ? attr.checked('') : []), ' Pseudo versions, such as v0.0.0-20240222094833-a1bd684a916b'), dom.br(), dom.label('Comment', 
 	// explicit String to prevent special scriptswitch handling
-	comment = dom.textarea(new String(sub.Comment))), dom.br(), dom.div(submitbtn = dom.submitbutton(sub.ID ? 'Save subscription' : 'Add subscription')))));
+	comment = dom.textarea(new String(sub.Comment))), dom.br(), dom.label('Delivery method', dom.div(webhookconfig = dom.select(dom.option('Email', attr.value('0')), hookconfigs.map(hc => dom.option('Webhook ' + hc.Name, attr.value('' + hc.ID), sub.HookConfigID === hc.ID ? attr.selected('') : []))))), dom.br(), dom.div(submitbtn = dom.submitbutton(sub.ID ? 'Save subscription' : 'Add subscription')))));
 	module.focus();
+};
+const hookconfigPopup = (hc, hookconfigs, render) => {
+	let fieldset;
+	let name;
+	let url;
+	let headers;
+	let disabled;
+	const close = popup(dom.h1(hc.ID ? 'Edit webhook config' : 'New webhook config'), dom.form(async function submit(e) {
+		e.stopPropagation();
+		e.preventDefault();
+		await check(fieldset, async () => {
+			const parsedHeaders = headers.value.split('\n')
+				.map(s => s.split(':', 2))
+				.filter(tup => tup.length === 2)
+				.map(tup => [tup[0].trim(), tup[1].trim()])
+				.filter(tup => tup[0] && tup[1]);
+			let nhc = {
+				ID: hc.ID,
+				UserID: hc.UserID,
+				Name: name.value,
+				URL: url.value,
+				Headers: parsedHeaders,
+				Disabled: disabled.checked,
+			};
+			if (hc.ID) {
+				await client.HookConfigSave(nhc);
+				hookconfigs.splice(hookconfigs.indexOf(hc), 1, nhc);
+			}
+			else {
+				const xhc = await client.HookConfigAdd(nhc);
+				hookconfigs.push(xhc);
+			}
+			render();
+			close();
+		});
+	}, fieldset = dom.fieldset(dom.label('Name', name = dom.input(attr.required(''), attr.value(hc.Name)), dom.div(dom._class('explain'), 'Short unique name to identify webhook config.')), dom.label('URL', url = dom.input(attr.required(''), attr.value(hc.URL)), dom.div(dom._class('explain'), 'URL to POST JSON body with updates to. ', dom.a(attr.href('#'), 'Details', function click(e) {
+		e.preventDefault();
+		popup(style({ maxWidth: '50em' }), dom.h1('Webhook HTTP requests'), dom.p('The request is a POST with a JSON body with the fields "Module", "Version", "Discovered" (timestamp) and "LogRecordID" (record ID in the sum database). More fields will likely be added in the future, so you should expect and allow for new fields to appear.'), dom.h2('Example JSON body'), dom.pre(dom._class('mono'), style({ padding: '1em', backgroundColor: '#eee', borderRadius: '.5em' }), JSON.stringify({ Module: 'github.com/mjl-/gopherwatch', Version: 'v0.0.1', Discovered: '2024-03-14T10:21:45.159Z', LogRecordID: 23637553 }, undefined, '\t')), dom.br(), dom.p('Requests have to finish in 30 seconds. At most 256 bytes of the response is read. Any 2xx response status code is considered success. Redirects are followed. Any other response status code is considered an error and a retry is scheduled. Retries are scheduled with expontential backoff, starting at 7.5 minutes, then 15 minutes, 30 minutes, etc. Up to 9 retries, the last interval is 16 hours. However, a response status code of "403 forbidden" prevents further retries. If a "429 Too many requests" response is received for a webhook config, no new request is made for one minute after that response.'), dom.p('If deliveries keep failing (after retries), the webhook config is disabled: If the 10 most recent deliveries all failed, or if all of the deliveries of the past week failed (and there were at least 2). You can manually enable the webhook config again.'));
+	}))), dom.br(), dom.label('Headers', headers = dom.textarea(new String((hc.Headers || []).map(tup => ((tup || [])[0]) + ': ' + ((tup || [])[1] || '')).join('\n')), attr.rows('' + (Math.max(5, (hc.Headers || []).length)))), dom.div(dom._class('explain'), 'Add custom headers to the request. Specify them in the form "key: value", one per line. Empty and malformed lines are removed, whitespace around keys and values is trimmed. Headers User-Agent and Content-Type are automatically set in all outgoing requests.')), dom.br(), dom.label(disabled = dom.input(attr.type('checkbox'), hc.Disabled ? attr.checked('') : []), ' Disabled, no new webhook calls are made'), dom.br(), dom.div(dom.submitbutton(hc.ID ? 'Save webhook config' : 'Add webhook config')))));
+	name.focus();
+};
+const hookPopup = (rh) => {
+	// todo: show curl request that is equivalent to what we do. to help with debugging.
+	const h = rh.Hook;
+	popup(dom.h1('Webhook delivery'), dom.div('Queued on ', h.Queued.toString(), '.'), dom.div('For module ', rh.Update.Module, ', version ', rh.Update.Version, '.'), dom.div('HTTP POST to ', h.URL, '.'), dom.h2('Results'), dom.table(dom.thead(dom.tr(dom.th('Start'), dom.th('Duration'), dom.th('Status'), dom.th('Error'), dom.th('Response'))), dom.tbody((h.Results || []).map(r => dom.tr(dom.td(age(r.Start), ' ago'), dom.td('' + r.DurationMS + 'ms'), dom.td('' + (r.StatusCode || '-')), dom.td(r.Error), dom.td(r.Response))))));
 };
 const overview = async () => {
 	const overview = await client.Overview();
 	let subscriptions = overview.Subscriptions || [];
+	let hookconfigs = overview.HookConfigs || [];
 	let moduleUpdates = overview.ModuleUpdates || [];
+	let recentHooks = overview.RecentHooks || [];
 	let substbody;
+	let hookconfigstbody;
 	let moduptbody;
+	let hookstbody;
+	// todo: SSE for updates to email/webhook deliveries in web interface.
 	const render = () => {
-		const nsubs = dom.tbody(subscriptions.length === 0 ? dom.tr(dom.td(attr.colspan('7'), 'No subscriptions yet, add the first one!')) : [], subscriptions.map(sub => {
+		const nsubs = dom.tbody(subscriptions.length === 0 ? dom.tr(dom.td(attr.colspan('8'), 'No subscriptions yet, add the first one!')) : [], subscriptions.map(sub => {
 			const row = dom.tr((overview.SkipModulePaths || []).includes(sub.Module) ? [
 				attr.title('Module will not match because it is on the list of skipped module paths:\n' + (overview.SkipModulePaths || []).join('\n')),
 				style({ color: '#888' })
-			] : [], dom.td(sub.Module), dom.td(sub.BelowModule ? 'Yes' : 'No'), dom.td(sub.OlderVersions ? 'Yes' : 'No'), dom.td(sub.Prerelease ? 'Yes' : 'No'), dom.td(sub.Pseudo ? 'Yes' : 'No'), dom.td(style({ maxWidth: '40em' }), sub.Comment), dom.td(dom.clickbutton('Edit', function click() { subscriptionPopup(sub, subscriptions, render); }), ' ', dom.clickbutton('Remove', async function click(e) {
+			] : [], dom.td(sub.Module), dom.td(sub.BelowModule ? 'Yes' : 'No'), dom.td(sub.OlderVersions ? 'Yes' : 'No'), dom.td(sub.Prerelease ? 'Yes' : 'No'), dom.td(sub.Pseudo ? 'Yes' : 'No'), dom.td(sub.HookConfigID === 0 ? 'Email' : 'Webhook ' + hookconfigs.find(hc => hc.ID === sub.HookConfigID).Name), dom.td(style({ maxWidth: '40em' }), sub.Comment), dom.td(dom.clickbutton('Edit', function click() { subscriptionPopup(sub, subscriptions, hookconfigs, render); }), ' ', dom.clickbutton('Remove', async function click(e) {
 				if (!window.confirm('Are you sure?')) {
 					return;
 				}
@@ -1040,13 +1138,65 @@ const overview = async () => {
 		}));
 		substbody.replaceWith(nsubs);
 		substbody = nsubs;
-		const nmodups = dom.tbody(moduleUpdates.length === 0 ? dom.tr(dom.td(attr.colspan('5'), 'No module updates.')) : [], moduleUpdates.map(modup => {
+		const nmodups = dom.tbody(moduleUpdates.length === 0 ? dom.tr(dom.td(attr.colspan('6'), 'No module updates.')) : [], moduleUpdates.map(modup => {
 			const link = (anchor, url) => dom.a(attr.href(url), anchor, attr.rel('noopener'));
-			const row = dom.tr(dom.td(link(modup.Module, modup.RepoURL || 'https://' + modup.Module)), dom.td(modup.TagURL ? link(modup.Version, modup.TagURL) : modup.Version), dom.td(modup.MessageID ? 'Yes' : 'No'), dom.td(modup.Discovered ? age(modup.Discovered) : []), dom.td(modup.DocURL ? link('Doc', modup.DocURL) : []));
+			const row = dom.tr(dom.td(link(modup.Module, modup.RepoURL || 'https://' + modup.Module)), dom.td(modup.TagURL ? link(modup.Version, modup.TagURL) : modup.Version), dom.td(modup.Discovered ? age(modup.Discovered) : []), dom.td(modup.DocURL ? link('Doc', modup.DocURL) : []), dom.td(modup.HookConfigID ? ('Webhook ' + (hookconfigs.find(hc => hc.ID === modup.HookConfigID)?.Name || '(not found)')) : 'Email'), dom.td(modup.MessageID ? 'Yes' : 'No'));
 			return row;
 		}));
 		moduptbody.replaceWith(nmodups);
 		moduptbody = nmodups;
+		const nhookconfigs = dom.tbody(hookconfigs.length === 0 ? dom.tr(dom.td(attr.colspan('4'), 'No webhook configs yet, add the first one!')) : [], hookconfigs.map(hc => {
+			const row = dom.tr(dom.td(hc.Name), dom.td(hc.URL), dom.td(hc.Disabled ? 'Yes' : 'No'), dom.td(dom.clickbutton('Edit', function click() { hookconfigPopup(hc, hookconfigs, render); }), ' ', dom.clickbutton('Remove', async function click(e) {
+				if (!window.confirm('Are you sure?')) {
+					return;
+				}
+				await check(e.target, async () => {
+					await client.HookConfigRemove(hc.ID);
+					hookconfigs.splice(hookconfigs.indexOf(hc), 1);
+					for (let i = 0; i < recentHooks.length;) {
+						if (recentHooks[i].Hook.HookConfigID === hc.ID) {
+							recentHooks.splice(i, 1);
+						}
+						else {
+							i++;
+						}
+					}
+					render();
+				});
+			})));
+			return row;
+		}));
+		hookconfigstbody.replaceWith(nhookconfigs);
+		hookconfigstbody = nhookconfigs;
+		const nhooks = dom.tbody(recentHooks.length === 0 ? dom.tr(dom.td(attr.colspan('7'), 'No webhook calls yet!')) : [], recentHooks.map(rh => {
+			const h = rh.Hook;
+			let lastResult;
+			if (h.Results && h.Results.length > 0) {
+				lastResult = h.Results[h.Results.length - 1];
+			}
+			const row = dom.tr(dom.td(hookconfigs.find(hc => hc.ID === h.HookConfigID)?.Name || ''), dom.td(rh.Update.Module), dom.td(rh.Update.Version), dom.td('' + h.Attempts), dom.td(h.Done ? '-' : age(h.NextAttempt, true)), dom.td(!lastResult ? '-' : [
+				'' + (lastResult.StatusCode || ''),
+				' ',
+				lastResult.Error,
+			]), dom.td(dom.clickbutton('Results', (h.Results || []).length === 0 ? attr.disabled('') : [], function click() {
+				hookPopup(rh);
+			}), ' ', dom.clickbutton('Cancel', h.Done ? attr.disabled('') : [], async function click(e) {
+				await check(e.target, async () => {
+					const nh = await client.HookCancel(h.ID);
+					recentHooks.splice(recentHooks.indexOf(rh), 1, { Update: rh.Update, Hook: nh });
+					render();
+				});
+			}), ' ', dom.clickbutton('Kick', attr.title('Schedule next attempt as soon as possible'), h.Done ? attr.disabled('') : [], async function click(e) {
+				await check(e.target, async () => {
+					const nh = await client.HookKick(h.ID);
+					recentHooks.splice(recentHooks.indexOf(rh), 1, { Update: rh.Update, Hook: nh });
+					render();
+				});
+			})));
+			return row;
+		}));
+		hookstbody.replaceWith(nhooks);
+		hookstbody = nhooks;
 	};
 	let intervalFieldset;
 	let interval;
@@ -1071,9 +1221,20 @@ const overview = async () => {
 			Prerelease: false,
 			Pseudo: false,
 			Comment: '',
+			HookConfigID: 0,
 		};
-		subscriptionPopup(nsub, subscriptions, render);
-	})), dom.br(), dom.table(dom.tr(dom.th('Module'), dom.th('Below module'), dom.th('Older versions'), dom.th('Prereleases'), dom.th('Pseudo versions'), dom.th('Comment'), dom.th('Action')), substbody = dom.tbody()), dom.br(), dom.h2('Notifications'), (() => {
+		subscriptionPopup(nsub, subscriptions, hookconfigs, render);
+	})), dom.br(), dom.table(dom.tr(dom.th('Module'), dom.th('Below module'), dom.th('Older versions'), dom.th('Prereleases'), dom.th('Pseudo versions'), dom.th('Delivery method'), dom.th('Comment'), dom.th('Action')), substbody = dom.tbody()), dom.br(), dom.div(dom.h2(style({ display: 'inline-block' }), 'Webhook configs'), ' ', dom.clickbutton('Add', function click() {
+		const nhc = {
+			ID: 0,
+			UserID: 0,
+			Name: '',
+			URL: '',
+			Headers: [],
+			Disabled: false
+		};
+		hookconfigPopup(nhc, hookconfigs, render);
+	})), dom.br(), dom.table(dom.tr(dom.th('Name'), dom.th('URL'), dom.th('Disabled'), dom.th('Action')), hookconfigstbody = dom.tbody()), dom.br(), dom.h2('Notifications'), (() => {
 		const render = () => {
 			let elem = dom.div(dom.p('Change the kind of email messages you will receive:'), dom.table(dom.tr(dom.th('Kind'), dom.th('Status'), dom.th('Action')), dom.tr(dom.td('Service messages', attr.title('Like password reset and announcements.')), dom.td(overview.MetaUnsubscribed ? 'Unsubscribed' : 'Subscribed'), dom.clickbutton(overview.MetaUnsubscribed ? 'Resubscribe' : 'Unsubscribe', async function click(e) {
 				await check(e.target, async () => {
@@ -1097,7 +1258,7 @@ const overview = async () => {
 		await check(intervalFieldset, async () => {
 			await client.IntervalSet(interval.value);
 		});
-	}, intervalFieldset = dom.fieldset(dom.label(style({ display: 'inline' }), dom.div('Minimum time between two notification emails'), interval = dom.select(dom.option('Immediate', attr.value('immediate'), overview.UpdateInterval === api.Interval.IntervalImmediate ? attr.selected('') : []), dom.option('1 hour', attr.value('hour'), overview.UpdateInterval === api.Interval.IntervalHour ? attr.selected('') : []), dom.option('1 day', attr.value('day'), overview.UpdateInterval === api.Interval.IntervalDay ? attr.selected('') : []), dom.option('1 week', attr.value('week'), overview.UpdateInterval === api.Interval.IntervalWeek ? attr.selected('') : []))), ' ', dom.submitbutton('Save'), dom.div(dom._class('explain'), 'Selected interval may be extended by a server-configured minimum interval.')))), dom.br(), dom.h2('Recent module updates'), dom.table(dom.tr(dom.th('Module', attr.title('Repo URLs are guesses and may be wrong.')), dom.th('Version', attr.title('Tag URLs are guesses and may be wrong.')), dom.th('Notified'), dom.th('Age'), dom.th('Docs', attr.title('Doc URLs are guesses and may be wrong.'))), moduptbody = dom.tbody()), dom.br(), dom.h2('History'), dom.p('Changes to your account over time, from recent to old.'), dom.table(dom.tr(dom.th('Age'), dom.th('Description')), (overview.UserLogs || []).map(l => dom.tr(dom.td(age(l.Time)), dom.td(l.Text)))), dom.br(), dom.h2('Danger'), dom.clickbutton('Remove account', async function click(e) {
+	}, intervalFieldset = dom.fieldset(dom.label(style({ display: 'inline' }), dom.div('Minimum time between two notification emails'), interval = dom.select(dom.option('Immediate', attr.value('immediate'), overview.UpdateInterval === api.Interval.IntervalImmediate ? attr.selected('') : []), dom.option('1 hour', attr.value('hour'), overview.UpdateInterval === api.Interval.IntervalHour ? attr.selected('') : []), dom.option('1 day', attr.value('day'), overview.UpdateInterval === api.Interval.IntervalDay ? attr.selected('') : []), dom.option('1 week', attr.value('week'), overview.UpdateInterval === api.Interval.IntervalWeek ? attr.selected('') : []))), ' ', dom.submitbutton('Save'), dom.div(dom._class('explain'), 'Selected interval may be extended by a server-configured minimum interval.')))), dom.br(), dom.h2('Recent module updates'), dom.table(dom.tr(dom.th('Module', attr.title('Repo URLs are guesses and may be wrong.')), dom.th('Version', attr.title('Tag URLs are guesses and may be wrong.')), dom.th('Age'), dom.th('Docs', attr.title('Doc URLs are guesses and may be wrong.')), dom.th('Delivery method'), dom.th('Notified by email')), moduptbody = dom.tbody()), dom.br(), dom.h2('Webhook deliveries'), dom.table(dom.tr(dom.th('Webhook config'), dom.th('Module'), dom.th('Version'), dom.th('Attempts'), dom.th('Next attempt'), dom.th('Last result'), dom.th('Action')), hookstbody = dom.tbody()), dom.br(), dom.h2('History'), dom.p('Changes to your account over time, from recent to old.'), dom.table(dom.tr(dom.th('Age'), dom.th('Description')), (overview.UserLogs || []).map(l => dom.tr(dom.td(age(l.Time)), dom.td(l.Text)))), dom.br(), dom.h2('Danger'), dom.clickbutton('Remove account', async function click(e) {
 		if (!window.confirm('Your account and all associated data will be permanently deleted. Are you sure?')) {
 			return;
 		}
@@ -1139,9 +1300,12 @@ const signup = (home) => {
 		email.focus();
 	}
 };
-const age = (date) => {
+const age = (date, future) => {
 	const nowSecs = new Date().getTime() / 1000;
 	let t = nowSecs - date.getTime() / 1000;
+	if (future) {
+		t = -t;
+	}
 	let negative = '';
 	if (t < 0) {
 		negative = '-';

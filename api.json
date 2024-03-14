@@ -387,6 +387,92 @@
 				}
 			],
 			"Returns": []
+		},
+		{
+			"Name": "HookConfigAdd",
+			"Docs": "",
+			"Params": [
+				{
+					"Name": "hc",
+					"Typewords": [
+						"HookConfig"
+					]
+				}
+			],
+			"Returns": [
+				{
+					"Name": "nhc",
+					"Typewords": [
+						"HookConfig"
+					]
+				}
+			]
+		},
+		{
+			"Name": "HookConfigSave",
+			"Docs": "",
+			"Params": [
+				{
+					"Name": "hc",
+					"Typewords": [
+						"HookConfig"
+					]
+				}
+			],
+			"Returns": []
+		},
+		{
+			"Name": "HookConfigRemove",
+			"Docs": "",
+			"Params": [
+				{
+					"Name": "hcID",
+					"Typewords": [
+						"int64"
+					]
+				}
+			],
+			"Returns": []
+		},
+		{
+			"Name": "HookCancel",
+			"Docs": "",
+			"Params": [
+				{
+					"Name": "hID",
+					"Typewords": [
+						"int64"
+					]
+				}
+			],
+			"Returns": [
+				{
+					"Name": "nh",
+					"Typewords": [
+						"Hook"
+					]
+				}
+			]
+		},
+		{
+			"Name": "HookKick",
+			"Docs": "",
+			"Params": [
+				{
+					"Name": "hID",
+					"Typewords": [
+						"int64"
+					]
+				}
+			],
+			"Returns": [
+				{
+					"Name": "nh",
+					"Typewords": [
+						"Hook"
+					]
+				}
+			]
 		}
 	],
 	"Sections": [],
@@ -462,6 +548,22 @@
 					]
 				},
 				{
+					"Name": "HookConfigs",
+					"Docs": "",
+					"Typewords": [
+						"[]",
+						"HookConfig"
+					]
+				},
+				{
+					"Name": "RecentHooks",
+					"Docs": "",
+					"Typewords": [
+						"[]",
+						"UpdateHook"
+					]
+				},
+				{
 					"Name": "UserLogs",
 					"Docs": "",
 					"Typewords": [
@@ -523,6 +625,13 @@
 					"Typewords": [
 						"string"
 					]
+				},
+				{
+					"Name": "HookConfigID",
+					"Docs": "If nonzero, don't deliver email message, but make a webhook call.",
+					"Typewords": [
+						"int64"
+					]
 				}
 			]
 		},
@@ -581,7 +690,21 @@
 				},
 				{
 					"Name": "MessageID",
-					"Docs": "If 0, not yet sent. We can suppress sending when recent messages have failed, or when our send rate has been too high. Index for enumerating updates that weren't notified about yet.",
+					"Docs": "If 0, not yet sent. Only relevant when HookID is 0, otherwise this is a webhook call. We can suppress sending when recent messages have failed, or when our send rate has been too high. Index for enumerating updates that weren't notified about yet.",
+					"Typewords": [
+						"int64"
+					]
+				},
+				{
+					"Name": "HookID",
+					"Docs": "If nonzero, this is a webhook. The Hook record may have been cleaned up, but the ID remains, hence no ref.",
+					"Typewords": [
+						"int64"
+					]
+				},
+				{
+					"Name": "HookConfigID",
+					"Docs": "",
 					"Typewords": [
 						"int64"
 					]
@@ -605,6 +728,270 @@
 					"Docs": "",
 					"Typewords": [
 						"string"
+					]
+				}
+			]
+		},
+		{
+			"Name": "HookConfig",
+			"Docs": "HookConfig has the configured URL for deliveries by webhook.",
+			"Fields": [
+				{
+					"Name": "ID",
+					"Docs": "",
+					"Typewords": [
+						"int64"
+					]
+				},
+				{
+					"Name": "UserID",
+					"Docs": "",
+					"Typewords": [
+						"int64"
+					]
+				},
+				{
+					"Name": "Name",
+					"Docs": "",
+					"Typewords": [
+						"string"
+					]
+				},
+				{
+					"Name": "URL",
+					"Docs": "URL to POST JSON body to.",
+					"Typewords": [
+						"string"
+					]
+				},
+				{
+					"Name": "Headers",
+					"Docs": "Headers to send in request.",
+					"Typewords": [
+						"[]",
+						"[]",
+						"string"
+					]
+				},
+				{
+					"Name": "Disabled",
+					"Docs": "",
+					"Typewords": [
+						"bool"
+					]
+				}
+			]
+		},
+		{
+			"Name": "UpdateHook",
+			"Docs": "",
+			"Fields": [
+				{
+					"Name": "Update",
+					"Docs": "",
+					"Typewords": [
+						"ModuleUpdate"
+					]
+				},
+				{
+					"Name": "Hook",
+					"Docs": "",
+					"Typewords": [
+						"Hook"
+					]
+				}
+			]
+		},
+		{
+			"Name": "ModuleUpdate",
+			"Docs": "ModuleUpdate is a registered update for a module for a subscription.",
+			"Fields": [
+				{
+					"Name": "ID",
+					"Docs": "",
+					"Typewords": [
+						"int64"
+					]
+				},
+				{
+					"Name": "UserID",
+					"Docs": "",
+					"Typewords": [
+						"int64"
+					]
+				},
+				{
+					"Name": "SubscriptionID",
+					"Docs": "No reference, subscriptions may be deleted.",
+					"Typewords": [
+						"int64"
+					]
+				},
+				{
+					"Name": "LogRecordID",
+					"Docs": "As found in transparency log.",
+					"Typewords": [
+						"int64"
+					]
+				},
+				{
+					"Name": "Discovered",
+					"Docs": "",
+					"Typewords": [
+						"timestamp"
+					]
+				},
+				{
+					"Name": "Module",
+					"Docs": "",
+					"Typewords": [
+						"string"
+					]
+				},
+				{
+					"Name": "Version",
+					"Docs": "",
+					"Typewords": [
+						"string"
+					]
+				},
+				{
+					"Name": "MessageID",
+					"Docs": "If 0, not yet sent. Only relevant when HookID is 0, otherwise this is a webhook call. We can suppress sending when recent messages have failed, or when our send rate has been too high. Index for enumerating updates that weren't notified about yet.",
+					"Typewords": [
+						"int64"
+					]
+				},
+				{
+					"Name": "HookID",
+					"Docs": "If nonzero, this is a webhook. The Hook record may have been cleaned up, but the ID remains, hence no ref.",
+					"Typewords": [
+						"int64"
+					]
+				},
+				{
+					"Name": "HookConfigID",
+					"Docs": "",
+					"Typewords": [
+						"int64"
+					]
+				}
+			]
+		},
+		{
+			"Name": "Hook",
+			"Docs": "Hook represents the (scheduled) delivery of a module update.",
+			"Fields": [
+				{
+					"Name": "ID",
+					"Docs": "",
+					"Typewords": [
+						"int64"
+					]
+				},
+				{
+					"Name": "UserID",
+					"Docs": "Index for listing recent hooks.",
+					"Typewords": [
+						"int64"
+					]
+				},
+				{
+					"Name": "HookConfigID",
+					"Docs": "",
+					"Typewords": [
+						"int64"
+					]
+				},
+				{
+					"Name": "URL",
+					"Docs": "Copied from webhook config.",
+					"Typewords": [
+						"string"
+					]
+				},
+				{
+					"Name": "Queued",
+					"Docs": "",
+					"Typewords": [
+						"timestamp"
+					]
+				},
+				{
+					"Name": "LastResult",
+					"Docs": "",
+					"Typewords": [
+						"timestamp"
+					]
+				},
+				{
+					"Name": "Attempts",
+					"Docs": "Start with 0. Increased each time, determines the next interval in case of errors.",
+					"Typewords": [
+						"int32"
+					]
+				},
+				{
+					"Name": "NextAttempt",
+					"Docs": "",
+					"Typewords": [
+						"timestamp"
+					]
+				},
+				{
+					"Name": "Done",
+					"Docs": "Index for quickly finding next work to do.",
+					"Typewords": [
+						"bool"
+					]
+				},
+				{
+					"Name": "Results",
+					"Docs": "From old attempts to recent.",
+					"Typewords": [
+						"[]",
+						"HookResult"
+					]
+				}
+			]
+		},
+		{
+			"Name": "HookResult",
+			"Docs": "HookResult is the result of one attempt at a webhook delivery.",
+			"Fields": [
+				{
+					"Name": "StatusCode",
+					"Docs": "Successful if 2xx.",
+					"Typewords": [
+						"int32"
+					]
+				},
+				{
+					"Name": "Error",
+					"Docs": "",
+					"Typewords": [
+						"string"
+					]
+				},
+				{
+					"Name": "Response",
+					"Docs": "Max 256 bytes, only if text/plain or application/json.",
+					"Typewords": [
+						"string"
+					]
+				},
+				{
+					"Name": "Start",
+					"Docs": "",
+					"Typewords": [
+						"timestamp"
+					]
+				},
+				{
+					"Name": "DurationMS",
+					"Docs": "",
+					"Typewords": [
+						"int64"
 					]
 				}
 			]
@@ -687,6 +1074,13 @@
 					"Docs": "",
 					"Typewords": [
 						"string"
+					]
+				},
+				{
+					"Name": "HookConfigID",
+					"Docs": "",
+					"Typewords": [
+						"int64"
 					]
 				},
 				{

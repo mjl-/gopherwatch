@@ -53,6 +53,9 @@ var indexHTML []byte
 //go:embed index.js
 var indexJS []byte
 
+//go:embed webhooks.html
+var webhooksHTML []byte
+
 //go:embed unsubscribe.html
 var unsubscribeHTML string
 
@@ -125,6 +128,7 @@ type Config struct {
 	IMAP                     IMAP          `sconf-doc:"For waiting for, and processing DSN messages. If we receive DSNs about an email address, we disable sending further messages."`
 	SkipModulePrefixes       []string      `sconf:"optional" sconf-doc:"Modules matching this prefix (e.g. 'githubmirror.example.com/') are not notified about, and not shown on the home page."`
 	SkipModulePaths          []string      `sconf-doc:"Module paths that we won't notify about. E.g. the bare github.com, which would result in too many matches and notification emails."`
+	WebhooksAllowInteralIPs  bool          `sconf:"optional" sconf-doc:"Allow delivering webhooks to internal IPs."`
 }
 
 type Admin struct {
@@ -172,6 +176,8 @@ func random() string {
 	return base64.RawURLEncoding.EncodeToString(buf)
 }
 
+var loglevel slog.LevelVar
+
 func main() {
 	slog.SetDefault(slog.New(
 		slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
@@ -187,9 +193,11 @@ func main() {
 				}
 				return a
 			},
-		},
-		)))
+			Level: &loglevel,
+		}),
+	))
 
+	flag.TextVar(&loglevel, "loglevel", &loglevel, "log level, default is info")
 	flag.Usage = func() {
 		fmt.Fprintln(os.Stderr, "usage: gopherwatch serve [flags]")
 		fmt.Fprintln(os.Stderr, "       gopherwatch describeconf >gopherwatch.conf")
@@ -228,18 +236,19 @@ func main() {
 			flag.Usage()
 		}
 		config = Config{
-			BaseURL:              "http://localhost:8073",
-			TokenSecret:          random(),
-			ServiceName:          "gopherwatch.localhost",
-			Admin:                Admin{Address: "gopherwatch@localhost", Password: random()},
-			SubjectPrefix:        "GopherWatch: ",
-			DailyMetaMessagesMax: 10,
-			SumDB:                SumDB{"https://sum.golang.org", "sum.golang.org+033de0ae+Ac4zctda0e5eza+HJyk9SxEdh+s3Ux18htTTAD8OuAn8", 10 * time.Minute},
-			IndexBaseURL:         "https://index.golang.org",
-			Submission:           Submission{"localhost", 1465, true, true, "mox@localhost", "moxmoxmox", SubmissionFrom{"gopherwatch", "mox", "localhost", "", dns.Domain{}}},
-			IMAP:                 IMAP{"localhost", 1993, true, true, "mox@localhost", "moxmoxmox", "gw:"},
-			SkipModulePrefixes:   []string{"github.1git.de/", "github.hscsec.cn/", "github.phpd.cn/", "github.skymusic.top/"},
-			SkipModulePaths:      []string{"github.com"},
+			BaseURL:                 "http://localhost:8073",
+			TokenSecret:             random(),
+			ServiceName:             "gopherwatch.localhost",
+			Admin:                   Admin{Address: "gopherwatch@localhost", Password: random()},
+			SubjectPrefix:           "GopherWatch: ",
+			DailyMetaMessagesMax:    10,
+			SumDB:                   SumDB{"https://sum.golang.org", "sum.golang.org+033de0ae+Ac4zctda0e5eza+HJyk9SxEdh+s3Ux18htTTAD8OuAn8", 10 * time.Minute},
+			IndexBaseURL:            "https://index.golang.org",
+			Submission:              Submission{"localhost", 1465, true, true, "mox@localhost", "moxmoxmox", SubmissionFrom{"gopherwatch", "mox", "localhost", "", dns.Domain{}}},
+			IMAP:                    IMAP{"localhost", 1993, true, true, "mox@localhost", "moxmoxmox", "gw:"},
+			SkipModulePrefixes:      []string{"github.1git.de/", "github.hscsec.cn/", "github.phpd.cn/", "github.skymusic.top/"},
+			SkipModulePaths:         []string{"github.com"},
+			WebhooksAllowInteralIPs: true,
 		}
 		if err := sconf.Describe(os.Stdout, config); err != nil {
 			logFatalx("describing config", err)
@@ -325,7 +334,7 @@ func serve(args []string) {
 		logFatalx("get hostname", err)
 	}
 
-	db, err := bstore.Open(context.Background(), dbpath, nil, TreeState{}, User{}, UserLog{}, Subscription{}, ModuleUpdate{}, Message{}, ModuleVersion{})
+	db, err := bstore.Open(context.Background(), dbpath, nil, TreeState{}, User{}, UserLog{}, Subscription{}, ModuleUpdate{}, Message{}, ModuleVersion{}, HookConfig{}, Hook{}, HookResult{})
 	if err != nil {
 		logFatalx("opening database", err)
 	}
@@ -371,6 +380,14 @@ func serve(args []string) {
 		h.Set("Content-Type", "text/html; charset=utf-8")
 		h.Set("Cache-Control", "no-cache, max-age=0")
 		w.Write([]byte(out))
+	})
+
+	publicMux.HandleFunc("GET /webhooks", func(w http.ResponseWriter, r *http.Request) {
+		h := w.Header()
+		safeHeaders(h)
+		h.Set("Content-Type", "text/html; charset=utf-8")
+		h.Set("Cache-Control", "no-cache, max-age=0")
+		w.Write(webhooksHTML)
 	})
 
 	publicMux.HandleFunc("GET /forward", func(w http.ResponseWriter, r *http.Request) {
@@ -638,6 +655,12 @@ func serve(args []string) {
 				if err := gatherType(tx, typeValues, "Subscription", Subscription{UserID: user.ID}, func(v Subscription) int64 { return v.ID }); err != nil {
 					return err
 				}
+				if err := gatherType(tx, typeValues, "HookConfig", HookConfig{UserID: user.ID}, func(v HookConfig) int64 { return v.ID }); err != nil {
+					return err
+				}
+				if err := gatherType(tx, typeValues, "Hook", Hook{UserID: user.ID}, func(v Hook) int64 { return v.ID }); err != nil {
+					return err
+				}
 				if err := gatherType(tx, typeValues, "ModuleUpdate", ModuleUpdate{UserID: user.ID}, func(v ModuleUpdate) int64 { return v.ID }); err != nil {
 					return err
 				}
@@ -710,12 +733,17 @@ func serve(args []string) {
 			if err != nil {
 				logErrorx("dumping database", err)
 			}
+		default:
+			http.NotFound(w, r)
 		}
 	})
 
 	// Watch mailbox over IMAP for DSNs and signup messages. uses IMAP IDLE to wait for
 	// incoming messages.
 	go mailWatch()
+
+	// Start delivery of webhooks.
+	go deliverHooks()
 
 	if metricsAddr != "" {
 		slog.Warn("listening for metrics", "metricsaddr", metricsAddr)

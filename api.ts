@@ -12,6 +12,8 @@ export interface Overview {
 	SkipModulePaths?: string[] | null
 	Subscriptions?: Subscription[] | null
 	ModuleUpdates?: ModuleUpdateURLs[] | null
+	HookConfigs?: HookConfig[] | null
+	RecentHooks?: UpdateHook[] | null
 	UserLogs?: UserLog[] | null
 }
 
@@ -24,6 +26,7 @@ export interface Subscription {
 	Prerelease: boolean  // No pre-release version, such as "v1.2.3-rc1", or "v1.2.3-0.20240214164601-39bfa4338a12".
 	Pseudo: boolean  // No pseudo versions like "v0.0.0-20240214164601-39bfa4338a12".
 	Comment: string  // Comment by user, to explain to future self why this is being monitored.
+	HookConfigID: number  // If nonzero, don't deliver email message, but make a webhook call.
 }
 
 export interface ModuleUpdateURLs {
@@ -34,10 +37,64 @@ export interface ModuleUpdateURLs {
 	Discovered: Date
 	Module: string
 	Version: string
-	MessageID: number  // If 0, not yet sent. We can suppress sending when recent messages have failed, or when our send rate has been too high. Index for enumerating updates that weren't notified about yet.
+	MessageID: number  // If 0, not yet sent. Only relevant when HookID is 0, otherwise this is a webhook call. We can suppress sending when recent messages have failed, or when our send rate has been too high. Index for enumerating updates that weren't notified about yet.
+	HookID: number  // If nonzero, this is a webhook. The Hook record may have been cleaned up, but the ID remains, hence no ref.
+	HookConfigID: number
 	RepoURL: string
 	TagURL: string
 	DocURL: string
+}
+
+// HookConfig has the configured URL for deliveries by webhook.
+export interface HookConfig {
+	ID: number
+	UserID: number
+	Name: string
+	URL: string  // URL to POST JSON body to.
+	Headers?: (string[] | null)[] | null  // Headers to send in request.
+	Disabled: boolean
+}
+
+export interface UpdateHook {
+	Update: ModuleUpdate
+	Hook: Hook
+}
+
+// ModuleUpdate is a registered update for a module for a subscription.
+export interface ModuleUpdate {
+	ID: number
+	UserID: number
+	SubscriptionID: number  // No reference, subscriptions may be deleted.
+	LogRecordID: number  // As found in transparency log.
+	Discovered: Date
+	Module: string
+	Version: string
+	MessageID: number  // If 0, not yet sent. Only relevant when HookID is 0, otherwise this is a webhook call. We can suppress sending when recent messages have failed, or when our send rate has been too high. Index for enumerating updates that weren't notified about yet.
+	HookID: number  // If nonzero, this is a webhook. The Hook record may have been cleaned up, but the ID remains, hence no ref.
+	HookConfigID: number
+}
+
+// Hook represents the (scheduled) delivery of a module update.
+export interface Hook {
+	ID: number
+	UserID: number  // Index for listing recent hooks.
+	HookConfigID: number
+	URL: string  // Copied from webhook config.
+	Queued: Date
+	LastResult: Date
+	Attempts: number  // Start with 0. Increased each time, determines the next interval in case of errors.
+	NextAttempt: Date
+	Done: boolean  // Index for quickly finding next work to do.
+	Results?: HookResult[] | null  // From old attempts to recent.
+}
+
+// HookResult is the result of one attempt at a webhook delivery.
+export interface HookResult {
+	StatusCode: number  // Successful if 2xx.
+	Error: string
+	Response: string  // Max 256 bytes, only if text/plain or application/json.
+	Start: Date
+	DurationMS: number
 }
 
 // UserLog is a line of history about a change to the user account.
@@ -55,6 +112,7 @@ export interface SubscriptionImport {
 	Prerelease: boolean
 	Pseudo: boolean
 	Comment: string
+	HookConfigID: number
 	Indirect: boolean
 }
 
@@ -92,15 +150,20 @@ export enum Interval {
 	IntervalWeek = "week",
 }
 
-export const structTypes: {[typename: string]: boolean} = {"Home":true,"ModuleUpdateURLs":true,"Overview":true,"Recent":true,"Subscription":true,"SubscriptionImport":true,"UserLog":true}
+export const structTypes: {[typename: string]: boolean} = {"Home":true,"Hook":true,"HookConfig":true,"HookResult":true,"ModuleUpdate":true,"ModuleUpdateURLs":true,"Overview":true,"Recent":true,"Subscription":true,"SubscriptionImport":true,"UpdateHook":true,"UserLog":true}
 export const stringsTypes: {[typename: string]: boolean} = {"Interval":true}
 export const intsTypes: {[typename: string]: boolean} = {}
 export const types: TypenameMap = {
-	"Overview": {"Name":"Overview","Docs":"","Fields":[{"Name":"Email","Docs":"","Typewords":["string"]},{"Name":"UpdateInterval","Docs":"","Typewords":["Interval"]},{"Name":"MetaUnsubscribed","Docs":"","Typewords":["bool"]},{"Name":"UpdatesUnsubscribed","Docs":"","Typewords":["bool"]},{"Name":"Backoff","Docs":"","Typewords":["string"]},{"Name":"BackoffUntil","Docs":"","Typewords":["timestamp"]},{"Name":"SkipModulePaths","Docs":"","Typewords":["[]","string"]},{"Name":"Subscriptions","Docs":"","Typewords":["[]","Subscription"]},{"Name":"ModuleUpdates","Docs":"","Typewords":["[]","ModuleUpdateURLs"]},{"Name":"UserLogs","Docs":"","Typewords":["[]","UserLog"]}]},
-	"Subscription": {"Name":"Subscription","Docs":"","Fields":[{"Name":"ID","Docs":"","Typewords":["int64"]},{"Name":"Module","Docs":"","Typewords":["string"]},{"Name":"BelowModule","Docs":"","Typewords":["bool"]},{"Name":"OlderVersions","Docs":"","Typewords":["bool"]},{"Name":"Prerelease","Docs":"","Typewords":["bool"]},{"Name":"Pseudo","Docs":"","Typewords":["bool"]},{"Name":"Comment","Docs":"","Typewords":["string"]}]},
-	"ModuleUpdateURLs": {"Name":"ModuleUpdateURLs","Docs":"","Fields":[{"Name":"ID","Docs":"","Typewords":["int64"]},{"Name":"UserID","Docs":"","Typewords":["int64"]},{"Name":"SubscriptionID","Docs":"","Typewords":["int64"]},{"Name":"LogRecordID","Docs":"","Typewords":["int64"]},{"Name":"Discovered","Docs":"","Typewords":["timestamp"]},{"Name":"Module","Docs":"","Typewords":["string"]},{"Name":"Version","Docs":"","Typewords":["string"]},{"Name":"MessageID","Docs":"","Typewords":["int64"]},{"Name":"RepoURL","Docs":"","Typewords":["string"]},{"Name":"TagURL","Docs":"","Typewords":["string"]},{"Name":"DocURL","Docs":"","Typewords":["string"]}]},
+	"Overview": {"Name":"Overview","Docs":"","Fields":[{"Name":"Email","Docs":"","Typewords":["string"]},{"Name":"UpdateInterval","Docs":"","Typewords":["Interval"]},{"Name":"MetaUnsubscribed","Docs":"","Typewords":["bool"]},{"Name":"UpdatesUnsubscribed","Docs":"","Typewords":["bool"]},{"Name":"Backoff","Docs":"","Typewords":["string"]},{"Name":"BackoffUntil","Docs":"","Typewords":["timestamp"]},{"Name":"SkipModulePaths","Docs":"","Typewords":["[]","string"]},{"Name":"Subscriptions","Docs":"","Typewords":["[]","Subscription"]},{"Name":"ModuleUpdates","Docs":"","Typewords":["[]","ModuleUpdateURLs"]},{"Name":"HookConfigs","Docs":"","Typewords":["[]","HookConfig"]},{"Name":"RecentHooks","Docs":"","Typewords":["[]","UpdateHook"]},{"Name":"UserLogs","Docs":"","Typewords":["[]","UserLog"]}]},
+	"Subscription": {"Name":"Subscription","Docs":"","Fields":[{"Name":"ID","Docs":"","Typewords":["int64"]},{"Name":"Module","Docs":"","Typewords":["string"]},{"Name":"BelowModule","Docs":"","Typewords":["bool"]},{"Name":"OlderVersions","Docs":"","Typewords":["bool"]},{"Name":"Prerelease","Docs":"","Typewords":["bool"]},{"Name":"Pseudo","Docs":"","Typewords":["bool"]},{"Name":"Comment","Docs":"","Typewords":["string"]},{"Name":"HookConfigID","Docs":"","Typewords":["int64"]}]},
+	"ModuleUpdateURLs": {"Name":"ModuleUpdateURLs","Docs":"","Fields":[{"Name":"ID","Docs":"","Typewords":["int64"]},{"Name":"UserID","Docs":"","Typewords":["int64"]},{"Name":"SubscriptionID","Docs":"","Typewords":["int64"]},{"Name":"LogRecordID","Docs":"","Typewords":["int64"]},{"Name":"Discovered","Docs":"","Typewords":["timestamp"]},{"Name":"Module","Docs":"","Typewords":["string"]},{"Name":"Version","Docs":"","Typewords":["string"]},{"Name":"MessageID","Docs":"","Typewords":["int64"]},{"Name":"HookID","Docs":"","Typewords":["int64"]},{"Name":"HookConfigID","Docs":"","Typewords":["int64"]},{"Name":"RepoURL","Docs":"","Typewords":["string"]},{"Name":"TagURL","Docs":"","Typewords":["string"]},{"Name":"DocURL","Docs":"","Typewords":["string"]}]},
+	"HookConfig": {"Name":"HookConfig","Docs":"","Fields":[{"Name":"ID","Docs":"","Typewords":["int64"]},{"Name":"UserID","Docs":"","Typewords":["int64"]},{"Name":"Name","Docs":"","Typewords":["string"]},{"Name":"URL","Docs":"","Typewords":["string"]},{"Name":"Headers","Docs":"","Typewords":["[]","[]","string"]},{"Name":"Disabled","Docs":"","Typewords":["bool"]}]},
+	"UpdateHook": {"Name":"UpdateHook","Docs":"","Fields":[{"Name":"Update","Docs":"","Typewords":["ModuleUpdate"]},{"Name":"Hook","Docs":"","Typewords":["Hook"]}]},
+	"ModuleUpdate": {"Name":"ModuleUpdate","Docs":"","Fields":[{"Name":"ID","Docs":"","Typewords":["int64"]},{"Name":"UserID","Docs":"","Typewords":["int64"]},{"Name":"SubscriptionID","Docs":"","Typewords":["int64"]},{"Name":"LogRecordID","Docs":"","Typewords":["int64"]},{"Name":"Discovered","Docs":"","Typewords":["timestamp"]},{"Name":"Module","Docs":"","Typewords":["string"]},{"Name":"Version","Docs":"","Typewords":["string"]},{"Name":"MessageID","Docs":"","Typewords":["int64"]},{"Name":"HookID","Docs":"","Typewords":["int64"]},{"Name":"HookConfigID","Docs":"","Typewords":["int64"]}]},
+	"Hook": {"Name":"Hook","Docs":"","Fields":[{"Name":"ID","Docs":"","Typewords":["int64"]},{"Name":"UserID","Docs":"","Typewords":["int64"]},{"Name":"HookConfigID","Docs":"","Typewords":["int64"]},{"Name":"URL","Docs":"","Typewords":["string"]},{"Name":"Queued","Docs":"","Typewords":["timestamp"]},{"Name":"LastResult","Docs":"","Typewords":["timestamp"]},{"Name":"Attempts","Docs":"","Typewords":["int32"]},{"Name":"NextAttempt","Docs":"","Typewords":["timestamp"]},{"Name":"Done","Docs":"","Typewords":["bool"]},{"Name":"Results","Docs":"","Typewords":["[]","HookResult"]}]},
+	"HookResult": {"Name":"HookResult","Docs":"","Fields":[{"Name":"StatusCode","Docs":"","Typewords":["int32"]},{"Name":"Error","Docs":"","Typewords":["string"]},{"Name":"Response","Docs":"","Typewords":["string"]},{"Name":"Start","Docs":"","Typewords":["timestamp"]},{"Name":"DurationMS","Docs":"","Typewords":["int64"]}]},
 	"UserLog": {"Name":"UserLog","Docs":"","Fields":[{"Name":"ID","Docs":"","Typewords":["int64"]},{"Name":"UserID","Docs":"","Typewords":["int64"]},{"Name":"Time","Docs":"","Typewords":["timestamp"]},{"Name":"Text","Docs":"","Typewords":["string"]}]},
-	"SubscriptionImport": {"Name":"SubscriptionImport","Docs":"","Fields":[{"Name":"GoMod","Docs":"","Typewords":["string"]},{"Name":"BelowModule","Docs":"","Typewords":["bool"]},{"Name":"OlderVersions","Docs":"","Typewords":["bool"]},{"Name":"Prerelease","Docs":"","Typewords":["bool"]},{"Name":"Pseudo","Docs":"","Typewords":["bool"]},{"Name":"Comment","Docs":"","Typewords":["string"]},{"Name":"Indirect","Docs":"","Typewords":["bool"]}]},
+	"SubscriptionImport": {"Name":"SubscriptionImport","Docs":"","Fields":[{"Name":"GoMod","Docs":"","Typewords":["string"]},{"Name":"BelowModule","Docs":"","Typewords":["bool"]},{"Name":"OlderVersions","Docs":"","Typewords":["bool"]},{"Name":"Prerelease","Docs":"","Typewords":["bool"]},{"Name":"Pseudo","Docs":"","Typewords":["bool"]},{"Name":"Comment","Docs":"","Typewords":["string"]},{"Name":"HookConfigID","Docs":"","Typewords":["int64"]},{"Name":"Indirect","Docs":"","Typewords":["bool"]}]},
 	"Home": {"Name":"Home","Docs":"","Fields":[{"Name":"Version","Docs":"","Typewords":["string"]},{"Name":"GoVersion","Docs":"","Typewords":["string"]},{"Name":"GoOS","Docs":"","Typewords":["string"]},{"Name":"GoArch","Docs":"","Typewords":["string"]},{"Name":"ServiceName","Docs":"","Typewords":["string"]},{"Name":"AdminName","Docs":"","Typewords":["string"]},{"Name":"AdminEmail","Docs":"","Typewords":["string"]},{"Name":"Note","Docs":"","Typewords":["string"]},{"Name":"SignupNote","Docs":"","Typewords":["string"]},{"Name":"SkipModulePrefixes","Docs":"","Typewords":["[]","string"]},{"Name":"SignupEmailDisabled","Docs":"","Typewords":["bool"]},{"Name":"SignupWebsiteDisabled","Docs":"","Typewords":["bool"]},{"Name":"SignupAddress","Docs":"","Typewords":["string"]},{"Name":"Recents","Docs":"","Typewords":["[]","Recent"]}]},
 	"Recent": {"Name":"Recent","Docs":"","Fields":[{"Name":"Module","Docs":"","Typewords":["string"]},{"Name":"Version","Docs":"","Typewords":["string"]},{"Name":"Discovered","Docs":"","Typewords":["timestamp"]},{"Name":"RepoURL","Docs":"","Typewords":["string"]},{"Name":"TagURL","Docs":"","Typewords":["string"]},{"Name":"DocURL","Docs":"","Typewords":["string"]}]},
 	"Interval": {"Name":"Interval","Docs":"","Values":[{"Name":"IntervalImmediate","Value":"immediate","Docs":""},{"Name":"IntervalHour","Value":"hour","Docs":""},{"Name":"IntervalDay","Value":"day","Docs":""},{"Name":"IntervalWeek","Value":"week","Docs":""}]},
@@ -110,6 +173,11 @@ export const parser = {
 	Overview: (v: any) => parse("Overview", v) as Overview,
 	Subscription: (v: any) => parse("Subscription", v) as Subscription,
 	ModuleUpdateURLs: (v: any) => parse("ModuleUpdateURLs", v) as ModuleUpdateURLs,
+	HookConfig: (v: any) => parse("HookConfig", v) as HookConfig,
+	UpdateHook: (v: any) => parse("UpdateHook", v) as UpdateHook,
+	ModuleUpdate: (v: any) => parse("ModuleUpdate", v) as ModuleUpdate,
+	Hook: (v: any) => parse("Hook", v) as Hook,
+	HookResult: (v: any) => parse("HookResult", v) as HookResult,
 	UserLog: (v: any) => parse("UserLog", v) as UserLog,
 	SubscriptionImport: (v: any) => parse("SubscriptionImport", v) as SubscriptionImport,
 	Home: (v: any) => parse("Home", v) as Home,
@@ -358,6 +426,46 @@ export class Client {
 		const returnTypes: string[][] = []
 		const params: any[] = [secret, kind, email]
 		return await _sherpaCall(this.baseURL, this.authState, { ...this.options }, paramTypes, returnTypes, fn, params) as void
+	}
+
+	async HookConfigAdd(hc: HookConfig): Promise<HookConfig> {
+		const fn: string = "HookConfigAdd"
+		const paramTypes: string[][] = [["HookConfig"]]
+		const returnTypes: string[][] = [["HookConfig"]]
+		const params: any[] = [hc]
+		return await _sherpaCall(this.baseURL, this.authState, { ...this.options }, paramTypes, returnTypes, fn, params) as HookConfig
+	}
+
+	async HookConfigSave(hc: HookConfig): Promise<void> {
+		const fn: string = "HookConfigSave"
+		const paramTypes: string[][] = [["HookConfig"]]
+		const returnTypes: string[][] = []
+		const params: any[] = [hc]
+		return await _sherpaCall(this.baseURL, this.authState, { ...this.options }, paramTypes, returnTypes, fn, params) as void
+	}
+
+	async HookConfigRemove(hcID: number): Promise<void> {
+		const fn: string = "HookConfigRemove"
+		const paramTypes: string[][] = [["int64"]]
+		const returnTypes: string[][] = []
+		const params: any[] = [hcID]
+		return await _sherpaCall(this.baseURL, this.authState, { ...this.options }, paramTypes, returnTypes, fn, params) as void
+	}
+
+	async HookCancel(hID: number): Promise<Hook> {
+		const fn: string = "HookCancel"
+		const paramTypes: string[][] = [["int64"]]
+		const returnTypes: string[][] = [["Hook"]]
+		const params: any[] = [hID]
+		return await _sherpaCall(this.baseURL, this.authState, { ...this.options }, paramTypes, returnTypes, fn, params) as Hook
+	}
+
+	async HookKick(hID: number): Promise<Hook> {
+		const fn: string = "HookKick"
+		const paramTypes: string[][] = [["int64"]]
+		const returnTypes: string[][] = [["Hook"]]
+		const params: any[] = [hID]
+		return await _sherpaCall(this.baseURL, this.authState, { ...this.options }, paramTypes, returnTypes, fn, params) as Hook
 	}
 }
 

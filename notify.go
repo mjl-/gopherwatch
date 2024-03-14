@@ -16,7 +16,10 @@ func notify() {
 	ctx := context.Background()
 
 	userUpdates := map[int64][]ModuleUpdate{}
-	err := bstore.QueryDB[ModuleUpdate](ctx, database).FilterEqual("MessageID", 0).ForEach(func(modup ModuleUpdate) error {
+	q := bstore.QueryDB[ModuleUpdate](ctx, database)
+	q.FilterEqual("MessageID", 0)
+	q.FilterEqual("HookID", 0)
+	err := q.ForEach(func(modup ModuleUpdate) error {
 		userUpdates[modup.UserID] = append(userUpdates[modup.UserID], modup)
 		return nil
 	})

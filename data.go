@@ -118,7 +118,7 @@ type UserLog struct {
 // Subscription to a module. New versions will cause an Update to be registered and sent.
 type Subscription struct {
 	ID     int64
-	UserID int64 `bstore:"nonzero,ref User,unique UserID+Module" json:"-"`
+	UserID int64 `bstore:"nonzero,ref User" json:"-"`
 
 	// Full path to subscribe to, e.g. github.com/mjl-.
 	// The transparency log can have entries for various upper/lower case variants.
@@ -140,6 +140,43 @@ type Subscription struct {
 	Pseudo bool
 
 	Comment string // Comment by user, to explain to future self why this is being monitored.
+
+	// If nonzero, don't deliver email message, but make a webhook call.
+	HookConfigID int64 `bstore:"ref HookConfig"`
+}
+
+// HookConfig has the configured URL for deliveries by webhook.
+type HookConfig struct {
+	ID     int64
+	UserID int64 `bstore:"unique UserID+Name"`
+
+	Name     string      `bstore:"nonzero"`
+	URL      string      `bstore:"nonzero"` // URL to POST JSON body to.
+	Headers  [][2]string // Headers to send in request.
+	Disabled bool
+}
+
+// Hook represents the (scheduled) delivery of a module update.
+type Hook struct {
+	ID           int64
+	UserID       int64     `bstore:"ref User,index UserID+NextAttempt"` // Index for listing recent hooks.
+	HookConfigID int64     `bstore:"nonzero,ref HookConfig"`
+	URL          string    // Copied from webhook config.
+	Queued       time.Time `bstore:"default now"`
+	LastResult   time.Time
+	Attempts     int          // Start with 0. Increased each time, determines the next interval in case of errors.
+	NextAttempt  time.Time    `bstore:"default now"`
+	Done         bool         `bstore:"index Done+NextAttempt"` // Index for quickly finding next work to do.
+	Results      []HookResult // From old attempts to recent.
+}
+
+// HookResult is the result of one attempt at a webhook delivery.
+type HookResult struct {
+	StatusCode int // Successful if 2xx.
+	Error      string
+	Response   string // Max 256 bytes, only if text/plain or application/json.
+	Start      time.Time
+	DurationMS int64
 }
 
 // ModuleUpdate is a registered update for a module for a subscription.
@@ -152,10 +189,17 @@ type ModuleUpdate struct {
 	Module         string    `bstore:"nonzero"`
 	Version        string    `bstore:"nonzero"`
 
-	// If 0, not yet sent. We can suppress sending when recent messages have failed, or
-	// when our send rate has been too high. Index for enumerating updates that weren't
-	// notified about yet.
+	// If 0, not yet sent. Only relevant when HookID is 0, otherwise this is a webhook
+	// call. We can suppress sending when recent messages have failed, or when our send
+	// rate has been too high. Index for enumerating updates that weren't notified
+	// about yet.
 	MessageID int64 `bstore:"index"`
+
+	// If nonzero, this is a webhook. The Hook record may have been cleaned up, but the ID
+	// remains, hence no ref.
+	HookID int64 `bstore:"index HookID+MessageID"`
+
+	HookConfigID int64
 }
 
 // Message is sent to a user, with 1 or more module updates. Before we send, we

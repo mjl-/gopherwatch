@@ -16,6 +16,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"runtime"
 	"strings"
@@ -130,7 +131,7 @@ func xaddUserLogf(tx *bstore.Tx, userID int64, format string, args ...any) {
 type API struct{}
 
 func xrandomID(n int) string {
-	return base64.RawURLEncoding.EncodeToString(xrandom(16))
+	return base64.RawURLEncoding.EncodeToString(xrandom(n))
 }
 
 func xrandom(n int) []byte {
@@ -445,6 +446,12 @@ func (API) UserRemove(ctx context.Context) {
 
 		_, err = bstore.QueryTx[Message](tx).FilterNonzero(Message{UserID: user.ID}).Delete()
 		xcheckf(err, "removing user messages")
+
+		_, err = bstore.QueryTx[Hook](tx).FilterNonzero(Hook{UserID: user.ID}).Delete()
+		xcheckf(err, "removing user webhook calls")
+
+		_, err = bstore.QueryTx[HookConfig](tx).FilterNonzero(HookConfig{UserID: user.ID}).Delete()
+		xcheckf(err, "removing user webhook configs")
 
 		err = tx.Delete(&user)
 		xcheckf(err, "removing user")
@@ -809,7 +816,14 @@ type Overview struct {
 
 	Subscriptions []Subscription
 	ModuleUpdates []ModuleUpdateURLs
+	HookConfigs   []HookConfig
+	RecentHooks   []UpdateHook
 	UserLogs      []UserLog
+}
+
+type UpdateHook struct {
+	Update ModuleUpdate
+	Hook   Hook
 }
 
 type ModuleUpdateURLs struct {
@@ -836,10 +850,10 @@ func (API) Overview(ctx context.Context) (overview Overview) {
 		overview.MetaUnsubscribed = u.MetaUnsubscribed
 		overview.UpdatesUnsubscribed = u.UpdatesUnsubscribed
 
-		overview.Subscriptions, err = bstore.QueryDB[Subscription](ctx, database).FilterNonzero(Subscription{UserID: reqInfo.UserID}).SortAsc("ID").List()
+		overview.Subscriptions, err = bstore.QueryTx[Subscription](tx).FilterNonzero(Subscription{UserID: reqInfo.UserID}).SortAsc("ID").List()
 		xcheckf(err, "listing subscriptions")
 
-		modups, err := bstore.QueryDB[ModuleUpdate](ctx, database).FilterNonzero(ModuleUpdate{UserID: reqInfo.UserID}).SortDesc("ID").Limit(50).List()
+		modups, err := bstore.QueryTx[ModuleUpdate](tx).FilterNonzero(ModuleUpdate{UserID: reqInfo.UserID}).SortDesc("ID").Limit(50).List()
 		xcheckf(err, "listing module updates")
 		overview.ModuleUpdates = make([]ModuleUpdateURLs, len(modups))
 		for i, modup := range modups {
@@ -847,7 +861,17 @@ func (API) Overview(ctx context.Context) (overview Overview) {
 			overview.ModuleUpdates[i] = ModuleUpdateURLs{modup, repoURL, tagURL, docURL}
 		}
 
-		overview.UserLogs, err = bstore.QueryDB[UserLog](ctx, database).FilterNonzero(UserLog{UserID: reqInfo.UserID}).SortDesc("ID").Limit(50).List()
+		overview.HookConfigs, err = bstore.QueryTx[HookConfig](tx).FilterNonzero(HookConfig{UserID: reqInfo.UserID}).SortAsc("ID").List()
+		xcheckf(err, "listing hook configs")
+
+		err = bstore.QueryTx[Hook](tx).FilterNonzero(Hook{UserID: reqInfo.UserID}).SortDesc("NextAttempt").Limit(100).ForEach(func(h Hook) error {
+			mu, err := bstore.QueryTx[ModuleUpdate](tx).FilterNonzero(ModuleUpdate{HookID: h.ID}).Get()
+			overview.RecentHooks = append(overview.RecentHooks, UpdateHook{mu, h})
+			return err
+		})
+		xcheckf(err, "listing recent hooks")
+
+		overview.UserLogs, err = bstore.QueryTx[UserLog](tx).FilterNonzero(UserLog{UserID: reqInfo.UserID}).SortDesc("ID").Limit(50).List()
 		xcheckf(err, "listing userlogs")
 
 		return nil
@@ -930,6 +954,16 @@ func xcheckModule(m string) {
 	}
 }
 
+// Check whether hookConfigID is ok for user.
+func xcheckhookconfig(tx *bstore.Tx, userID, hookConfigID int64) {
+	// Verify it's the user's.
+	exists, err := bstore.QueryTx[HookConfig](tx).FilterNonzero(HookConfig{UserID: userID, ID: hookConfigID}).Exists()
+	xcheckf(err, "looking up hook config")
+	if !exists {
+		xusererrorf("no such webhook config")
+	}
+}
+
 // SubscriptionCreate adds a new subscription to a module.
 func (API) SubscriptionCreate(ctx context.Context, sub Subscription) Subscription {
 	reqInfo := ctx.Value(requestInfoCtxKey).(requestInfo)
@@ -938,8 +972,13 @@ func (API) SubscriptionCreate(ctx context.Context, sub Subscription) Subscriptio
 
 	sub.ID = 0
 	sub.UserID = reqInfo.UserID
-	err := database.Insert(ctx, &sub)
-	xusercheckf(err, "inserting new subscription")
+	err := database.Write(ctx, func(tx *bstore.Tx) error {
+		if sub.HookConfigID != 0 {
+			xcheckhookconfig(tx, reqInfo.UserID, sub.HookConfigID)
+		}
+		return tx.Insert(&sub)
+	})
+	xcheckf(err, "inserting new subscription")
 	return sub
 }
 
@@ -950,6 +989,7 @@ type SubscriptionImport struct {
 	Prerelease    bool
 	Pseudo        bool
 	Comment       string
+	HookConfigID  int64
 	Indirect      bool
 }
 
@@ -962,6 +1002,10 @@ func (API) SubscriptionImport(ctx context.Context, imp SubscriptionImport) (subs
 	xusercheckf(err, "parsing go.mod")
 
 	err = database.Write(ctx, func(tx *bstore.Tx) error {
+		if imp.HookConfigID != 0 {
+			xcheckhookconfig(tx, reqInfo.UserID, imp.HookConfigID)
+		}
+
 		for _, r := range f.Require {
 			if r.Indirect && !imp.Indirect {
 				continue
@@ -976,12 +1020,13 @@ func (API) SubscriptionImport(ctx context.Context, imp SubscriptionImport) (subs
 			}
 
 			sub := Subscription{
-				UserID:      reqInfo.UserID,
-				Module:      r.Mod.Path,
-				BelowModule: imp.BelowModule,
-				Prerelease:  imp.Prerelease,
-				Pseudo:      imp.Pseudo,
-				Comment:     imp.Comment,
+				UserID:       reqInfo.UserID,
+				Module:       r.Mod.Path,
+				BelowModule:  imp.BelowModule,
+				Prerelease:   imp.Prerelease,
+				Pseudo:       imp.Pseudo,
+				Comment:      imp.Comment,
+				HookConfigID: imp.HookConfigID,
 			}
 			err = tx.Insert(&sub)
 			xusercheckf(err, "inserting new subscription")
@@ -1005,10 +1050,14 @@ func (API) SubscriptionSave(ctx context.Context, sub Subscription) {
 	xcheckModule(sub.Module)
 
 	err := database.Write(ctx, func(tx *bstore.Tx) error {
-		exists, err := bstore.QueryTx[Subscription](tx).FilterNonzero(Subscription{ID: sub.ID, UserID: reqInfo.UserID}).Limit(1).Exists()
+		exists, err := bstore.QueryTx[Subscription](tx).FilterNonzero(Subscription{ID: sub.ID, UserID: reqInfo.UserID}).Exists()
 		xcheckf(err, "get subscription")
 		if !exists {
 			xusererrorf("no such subscription")
+		}
+
+		if sub.HookConfigID != 0 {
+			xcheckhookconfig(tx, reqInfo.UserID, sub.HookConfigID)
 		}
 
 		sub.UserID = reqInfo.UserID
@@ -1218,4 +1267,155 @@ func (API) TestSend(ctx context.Context, secret, kind, email string) {
 	defer smtpconn.Close()
 	err = smtpSubmit(ctx, smtpconn, false, mailFrom, u.Email, msg, eightbit, smtputf8)
 	xcheckf(err, "submit message")
+}
+
+func xcheckhookurl(s string) {
+	u, err := url.Parse(s)
+	xusercheckf(err, "parsing url")
+	if u.Scheme != "http" && u.Scheme != "https" {
+		xusererrorf("scheme %q not allowed, use https or http", u.Scheme)
+	}
+}
+
+// todo: should we require an opt-in before we start making requests? e.g. require that an endpoint returns certain data we specify.
+
+func (API) HookConfigAdd(ctx context.Context, hc HookConfig) (nhc HookConfig) {
+	reqInfo := ctx.Value(requestInfoCtxKey).(requestInfo)
+
+	err := database.Write(ctx, func(tx *bstore.Tx) error {
+		hc.ID = 0
+		hc.UserID = reqInfo.UserID
+		xcheckhookurl(hc.URL)
+		if err := tx.Insert(&hc); err != nil {
+			return err
+		}
+		nhc = hc
+		return nil
+	})
+	if err != nil && errors.Is(err, bstore.ErrUnique) {
+		xusererrorf("config not unique")
+	}
+	xcheckf(err, "add hook config")
+	return
+}
+
+func (API) HookConfigSave(ctx context.Context, hc HookConfig) {
+	reqInfo := ctx.Value(requestInfoCtxKey).(requestInfo)
+
+	err := database.Write(ctx, func(tx *bstore.Tx) error {
+		if hc.ID == 0 {
+			xusererrorf("missing hook config id")
+		}
+		xcheckhookurl(hc.URL)
+
+		ohc, err := bstore.QueryTx[HookConfig](tx).FilterNonzero(HookConfig{ID: hc.ID, UserID: reqInfo.UserID}).Get()
+		if err == bstore.ErrAbsent {
+			xusererrorf("no such hook config")
+		}
+		xcheckf(err, "get current hook config")
+		ohc.Name = hc.Name
+		ohc.URL = hc.URL
+		ohc.Headers = hc.Headers
+		ohc.Disabled = hc.Disabled
+		if err := tx.Update(&ohc); err != nil {
+			return err
+		}
+		return nil
+	})
+	if err != nil && errors.Is(err, bstore.ErrUnique) {
+		xusererrorf("config not unique")
+	}
+	xcheckf(err, "save hook config")
+}
+
+func (API) HookConfigRemove(ctx context.Context, hcID int64) {
+	reqInfo := ctx.Value(requestInfoCtxKey).(requestInfo)
+
+	err := database.Write(ctx, func(tx *bstore.Tx) error {
+		if hcID == 0 {
+			xusererrorf("missing hook config id")
+		}
+
+		ohc, err := bstore.QueryTx[HookConfig](tx).FilterNonzero(HookConfig{ID: hcID, UserID: reqInfo.UserID}).Get()
+		if err == bstore.ErrAbsent {
+			xusererrorf("no such hook config")
+		}
+		xcheckf(err, "get current hook config")
+
+		// First remove hooks referencing config.
+		_, err = bstore.QueryTx[Hook](tx).FilterNonzero(Hook{HookConfigID: ohc.ID}).Delete()
+		xcheckf(err, "removing hooks for config")
+
+		if err := tx.Delete(&ohc); err != nil {
+			if errors.Is(err, bstore.ErrReference) {
+				xusererrorf("webhook config still in use with subscription")
+			}
+			return err
+		}
+
+		return nil
+	})
+	xcheckf(err, "remove hook config")
+}
+
+func (API) HookCancel(ctx context.Context, hID int64) (nh Hook) {
+	reqInfo := ctx.Value(requestInfoCtxKey).(requestInfo)
+
+	err := database.Write(ctx, func(tx *bstore.Tx) error {
+		if hID == 0 {
+			xusererrorf("missing hook id")
+		}
+
+		oh, err := bstore.QueryTx[Hook](tx).FilterNonzero(Hook{ID: hID, UserID: reqInfo.UserID}).Get()
+		if err == bstore.ErrAbsent {
+			xusererrorf("no such hook")
+		}
+		xcheckf(err, "get current hook")
+
+		if oh.Done {
+			xusererrorf("hook already done")
+		}
+
+		oh.Done = true
+		oh.Results = append(oh.Results, HookResult{Error: "Canceled by user", Start: time.Now()})
+		oh.NextAttempt = time.Now()
+		if err := tx.Update(&oh); err != nil {
+			return err
+		}
+		nh = oh
+		return nil
+	})
+	xcheckf(err, "remove hook")
+	return
+}
+
+func (API) HookKick(ctx context.Context, hID int64) (nh Hook) {
+	reqInfo := ctx.Value(requestInfoCtxKey).(requestInfo)
+
+	err := database.Write(ctx, func(tx *bstore.Tx) error {
+		if hID == 0 {
+			xusererrorf("missing hook id")
+		}
+
+		h, err := bstore.QueryTx[Hook](tx).FilterNonzero(Hook{ID: hID, UserID: reqInfo.UserID}).Get()
+		if err == bstore.ErrAbsent {
+			xusererrorf("no such hook")
+		}
+		xcheckf(err, "get current hook")
+
+		if h.Done {
+			xusererrorf("hook already done")
+		}
+
+		h.NextAttempt = time.Now()
+		if err := tx.Update(&h); err != nil {
+			return err
+		}
+
+		nh = h
+		return nil
+	})
+	xcheckf(err, "update hook")
+	kickHooksQueue()
+	return
 }

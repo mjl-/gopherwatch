@@ -346,6 +346,7 @@ func processModules(ts TreeState, ntree tlog.Tree, modversions []module.Version)
 	now := time.Now()
 	var nprocessed int64
 	var nupdates int
+	var havehooks bool
 	err := database.Write(context.Background(), func(tx *bstore.Tx) error {
 		nprocessed = ntree.N - ts.RecordsProcessed
 		if nprocessed != int64(len(modversions)) {
@@ -417,6 +418,7 @@ func processModules(ts TreeState, ntree tlog.Tree, modversions []module.Version)
 		// We'll then sort them to order by version. Then we insert them into the database
 		// for subsequent message sending.
 		var updates []ModuleUpdate
+		var hooks []Hook
 	ModVersion:
 		for i, mv := range modversions {
 			p := mv.Path
@@ -468,11 +470,37 @@ func processModules(ts TreeState, ntree tlog.Tree, modversions []module.Version)
 					user := User{ID: sub.UserID}
 					if err := tx.Get(&user); err != nil {
 						return fmt.Errorf("get user: %v", err)
-					} else if user.UpdatesUnsubscribed || user.Backoff >= BackoffPermanent {
+					} else if sub.HookConfigID == 0 && (user.UpdatesUnsubscribed || user.Backoff >= BackoffPermanent) {
 						continue
 					}
 
-					slog.Info("found subscription for module", "path", p, "subscription", sub, "userid", user.ID)
+					var h Hook
+					if sub.HookConfigID != 0 {
+						hc := HookConfig{ID: sub.HookConfigID}
+						if err := tx.Get(&hc); err != nil {
+							return fmt.Errorf("get webhook config: %v", err)
+						}
+
+						if hc.Disabled {
+							slog.Debug("webhook config disabled, not notifying", "userid", user.ID, "hookconfig", hc.Name, "module", p, "version", mv.Version)
+							continue
+						}
+
+						h = Hook{
+							UserID:       user.ID,
+							HookConfigID: hc.ID,
+							URL:          hc.URL, // Copy of URL for history.
+							// NextAttempt will be updated below, for spreading over a 1-5 min interval.
+							NextAttempt: time.Now(),
+						}
+						if err := tx.Insert(&h); err != nil {
+							return fmt.Errorf("insert hook: %v", err)
+						}
+						slog.Debug("created webhook call for module update", "userid", user.ID, "hookconfig", hc.Name, "hookid", h.ID, "subscriptionpath", p, "module", mv.Path, "version", mv.Version)
+						hooks = append(hooks, h)
+					} else {
+						slog.Info("found email subscription for module", "userid", user.ID, "path", p, "subscriptionpath", p, "module", mv.Path, "version", mv.Version, "subscription", sub)
+					}
 
 					modup := ModuleUpdate{
 						UserID:         sub.UserID,
@@ -480,6 +508,8 @@ func processModules(ts TreeState, ntree tlog.Tree, modversions []module.Version)
 						LogRecordID:    startID + int64(i),
 						Module:         mv.Path,
 						Version:        mv.Version,
+						HookID:         h.ID,
+						HookConfigID:   h.HookConfigID,
 					}
 					updates = append(updates, modup)
 				}
@@ -501,10 +531,33 @@ func processModules(ts TreeState, ntree tlog.Tree, modversions []module.Version)
 		}
 		nupdates = len(updates)
 
+		// Spread out delivery of hooks over 1-5 minutes, depending on refresh interval.
+		// todo: if subscription only cares about most recent version, keep only the highest version in case of multiple for a module.
+		if len(hooks) > 1 {
+			interval := config.SumDB.QueryLatestInterval
+			if interval < time.Minute {
+				interval = time.Minute
+			} else if interval > 5*time.Minute {
+				interval = 5 * time.Minute
+			}
+			interval /= time.Duration(len(hooks) - 1)
+			for i := range hooks {
+				hooks[i].NextAttempt = hooks[i].NextAttempt.Add(time.Duration(i) * interval)
+				if err := tx.Update(&hooks[i]); err != nil {
+					return fmt.Errorf("update next attempt for hook: %v", err)
+				}
+			}
+		}
+		havehooks = len(hooks) > 0
+
 		return nil
 	})
 	if err != nil {
 		return fmt.Errorf("updating database after new modules: %v", err)
+	}
+
+	if havehooks {
+		kickHooksQueue()
 	}
 
 	metricTlogProcessed.Add(float64(nprocessed))

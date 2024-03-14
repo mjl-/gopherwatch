@@ -96,4 +96,18 @@ var (
 			Help: "Number of unhandled panics.",
 		},
 	)
+	metricHookRequest = promauto.NewHistogram(
+		prometheus.HistogramOpts{
+			Name:    "gopherwatch_hook_duration_seconds",
+			Help:    "HTTP webhook requests.",
+			Buckets: []float64{0.01, 0.05, 0.100, 0.5, 1, 5, 10, 20, 30},
+		},
+	)
+	metricHookResponse = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "gopherwatch_hook_response_total",
+			Help: "Number of webhook responses and their major status code or error.",
+		},
+		[]string{"result"}, // "2xx", "3xx", etc, or "error".
+	)
 )

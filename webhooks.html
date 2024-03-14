@@ -1,0 +1,27 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8" />
+		<title>GopherWatch - Webhooks</title>
+		<meta name="viewport" content="width=device-width, height=device-height, initial-scale=1" />
+		<link rel="icon" href="noNeedlessFaviconRequestsPlease:" />
+		<style>
+* { font-size: inherit; font-family: 'ubuntu', 'lato', sans-serif; margin: 0; padding: 0; box-sizing: border-box; }
+body { padding: 1em; }
+h1, h2 { margin-bottom: 1ex; }
+h1 { font-size: 1.25rem; }
+h2 { font-size: 1.125rem; margin-top: 3ex; }
+a { color: #007d9c; }
+p { margin-bottom: 2ex; }
+.page > * { max-width: 50em; }
+.page > table { max-width: inherit; }
+		</style>
+	</head>
+	<body>
+		<div class="page">
+			<h1>Webhooks</h1>
+			<p>You may have found this URL in your HTTP access logs. Gopherwatch is a service that can send notifications by email or webhooks (HTTP requests) when new Go modules/versions are published.</p>
+			<p>Webhooks are automatically disabled when the last 10 notifications failed (after retries), or all notifications (minimum 2) in the past 7 days failed. Delivery retries for individual events are stopped when a "403 Forbidden" status is received. If a request results in a "429 Too many requests" response status, we back off delivery attempts. If you are still experiencing too many requests and can't get them to stop, please contact us. See Notes at the bottom of <a href="./">Home</a>.</p>
+		</div>
+	</body>
+</html>

@@ -455,7 +455,7 @@ func processModules(ts TreeState, ntree tlog.Tree, modversions []module.Version)
 					if !sub.OlderVersions {
 						// Check most recent version we notified about.
 						q := bstore.QueryTx[ModuleUpdate](tx)
-						q.FilterNonzero(ModuleUpdate{UserID: sub.UserID, Module: p})
+						q.FilterNonzero(ModuleUpdate{UserID: sub.UserID, Module: mv.Path})
 						q.SortDesc("Discovered")
 						q.Limit(1)
 						modup, err := q.Get()
@@ -482,7 +482,7 @@ func processModules(ts TreeState, ntree tlog.Tree, modversions []module.Version)
 						}
 
 						if hc.Disabled {
-							slog.Debug("webhook config disabled, not notifying", "userid", user.ID, "hookconfig", hc.Name, "module", p, "version", mv.Version)
+							slog.Debug("webhook config disabled, not notifying", "userid", user.ID, "hookconfig", hc.Name, "module", mv.Path, "version", mv.Version, "subscriptionpath", p)
 							continue
 						}
 

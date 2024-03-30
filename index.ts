@@ -696,7 +696,7 @@ const overview = async () => {
 							dom.td(overview.MetaUnsubscribed ? 'Unsubscribed' : 'Subscribed'),
 							dom.clickbutton(overview.MetaUnsubscribed ? 'Resubscribe' : 'Unsubscribe', async function click(e: MouseEvent) {
 								await check(e.target! as HTMLButtonElement, async () => {
-									await client.SubscribeSet(true, !overview.MetaUnsubscribed)
+									await client.SubscribeSet(true, overview.MetaUnsubscribed)
 									overview.MetaUnsubscribed = !overview.MetaUnsubscribed
 									elem.replaceWith(render())
 								})
@@ -707,7 +707,7 @@ const overview = async () => {
 							dom.td(overview.UpdatesUnsubscribed ? 'Unsubscribed' : 'Subscribed'),
 							dom.clickbutton(overview.UpdatesUnsubscribed ? 'Resubscribe' : 'Unsubscribe', async function click(e: MouseEvent) {
 								await check(e.target! as HTMLButtonElement, async () => {
-									await client.SubscribeSet(false, !overview.UpdatesUnsubscribed)
+									await client.SubscribeSet(false, overview.UpdatesUnsubscribed)
 									overview.UpdatesUnsubscribed = !overview.UpdatesUnsubscribed
 									elem.replaceWith(render())
 								})

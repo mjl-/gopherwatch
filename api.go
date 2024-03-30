@@ -890,20 +890,22 @@ func (API) SubscribeSet(ctx context.Context, meta, subscribed bool) {
 		err := tx.Get(&u)
 		xcheckf(err, "get user")
 
+		unsub := !subscribed
+
 		var kind string
 		if meta {
 			kind = "service messages"
-			if u.MetaUnsubscribed == subscribed {
+			if u.MetaUnsubscribed == unsub {
 				xusererrorf("already set")
 			} else {
-				u.MetaUnsubscribed = subscribed
+				u.MetaUnsubscribed = unsub
 			}
 		} else {
 			kind = "module update messages"
-			if u.UpdatesUnsubscribed == subscribed {
+			if u.UpdatesUnsubscribed == unsub {
 				xusererrorf("already set")
 			} else {
-				u.UpdatesUnsubscribed = subscribed
+				u.UpdatesUnsubscribed = unsub
 			}
 		}
 

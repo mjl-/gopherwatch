@@ -1238,13 +1238,13 @@ const overview = async () => {
 		const render = () => {
 			let elem = dom.div(dom.p('Change the kind of email messages you will receive:'), dom.table(dom.tr(dom.th('Kind'), dom.th('Status'), dom.th('Action')), dom.tr(dom.td('Service messages', attr.title('Like password reset and announcements.')), dom.td(overview.MetaUnsubscribed ? 'Unsubscribed' : 'Subscribed'), dom.clickbutton(overview.MetaUnsubscribed ? 'Resubscribe' : 'Unsubscribe', async function click(e) {
 				await check(e.target, async () => {
-					await client.SubscribeSet(true, !overview.MetaUnsubscribed);
+					await client.SubscribeSet(true, overview.MetaUnsubscribed);
 					overview.MetaUnsubscribed = !overview.MetaUnsubscribed;
 					elem.replaceWith(render());
 				});
 			})), dom.tr(dom.td('Module updates'), dom.td(overview.UpdatesUnsubscribed ? 'Unsubscribed' : 'Subscribed'), dom.clickbutton(overview.UpdatesUnsubscribed ? 'Resubscribe' : 'Unsubscribe', async function click(e) {
 				await check(e.target, async () => {
-					await client.SubscribeSet(false, !overview.UpdatesUnsubscribed);
+					await client.SubscribeSet(false, overview.UpdatesUnsubscribed);
 					overview.UpdatesUnsubscribed = !overview.UpdatesUnsubscribed;
 					elem.replaceWith(render());
 				});

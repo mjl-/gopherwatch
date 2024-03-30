@@ -12,6 +12,9 @@ testmode: build
 livemode: build
 	./gopherwatch serve
 
+livemode-resettree: build
+	./gopherwatch serve -resettree
+
 genconf: build
 	./gopherwatch genconf >new.conf
 

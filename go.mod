@@ -3,7 +3,7 @@ module github.com/mjl-/gopherwatch
 go 1.22.0
 
 require (
-	github.com/mjl-/bstore v0.0.4
+	github.com/mjl-/bstore v0.0.5
 	github.com/mjl-/mox v0.0.11-0.20240313163553-2c9cb5b847a7
 	github.com/mjl-/sconf v0.0.5
 	github.com/mjl-/sherpa v0.6.7

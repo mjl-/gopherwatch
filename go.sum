@@ -26,8 +26,8 @@ github.com/matttproud/golang_protobuf_extensions/v2 v2.0.0 h1:jWpvCLoY8Z/e3VKvls
 github.com/matttproud/golang_protobuf_extensions/v2 v2.0.0/go.mod h1:QUyp042oQthUoa9bqDv0ER0wrtXnBruoNd7aNjkbP+k=
 github.com/mjl-/adns v0.0.0-20240309142737-2a1aacf346dc h1:ghTx3KsrO0hSJW0bCFCGwjSrYeXZ6Bj5hdv9FTTFV4M=
 github.com/mjl-/adns v0.0.0-20240309142737-2a1aacf346dc/go.mod h1:v47qUMJnipnmDTRGaHwpCwzE6oypa5K33mUvBfzZBn8=
-github.com/mjl-/bstore v0.0.4 h1:q+R1oAr8+E9yf9q+zxkVjQ18VFqD/E9KmGVoe4FIOBA=
-github.com/mjl-/bstore v0.0.4/go.mod h1:/cD25FNBaDfvL/plFRxI3Ba3E+wcB0XVOS8nJDqndg0=
+github.com/mjl-/bstore v0.0.5 h1:Cx+LWEBnFBsqSxZNMxeVujkfc0kG10lUJaAU4vWSRHo=
+github.com/mjl-/bstore v0.0.5/go.mod h1:/cD25FNBaDfvL/plFRxI3Ba3E+wcB0XVOS8nJDqndg0=
 github.com/mjl-/mox v0.0.11-0.20240313163553-2c9cb5b847a7 h1:Nbu7NY+XFZVveS7s/jX1cTTmIZuXRiDtu8yHCXaDS4w=
 github.com/mjl-/mox v0.0.11-0.20240313163553-2c9cb5b847a7/go.mod h1:6YYUzVv+DBNoUmP8OHa3vKKHvQ4N4jwvjjcVVbA1xRc=
 github.com/mjl-/sconf v0.0.5 h1:4CMUTENpSnaeP2g6RKtrs8udTxnJgjX2MCCovxGId6s=

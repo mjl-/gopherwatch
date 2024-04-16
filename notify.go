@@ -63,23 +63,10 @@ func notify() {
 			log.Error("composing update notification text", "err", err)
 			return
 		}
-		mailFrom, sendID, msg, eightbit, smtputf8, err := compose(false, u, "", subject, text, html)
-		if err != nil {
-			log.Error("composing update notification message", "err", err)
-			return
-		}
 
 		// Wait until we can send, we may be ratelimiting.
 		d := 5 * time.Second
-		for !smtpCanSend() {
-			// If we already have a connection, close it for now. Otherwise it will likely
-			// timeout and the submission will fail.
-			if smtpconn != nil {
-				if err := smtpconn.Close(); err != nil {
-					log.Error("closing smtp connection", "err", err)
-				}
-				smtpconn = nil
-			}
+		for !sendCan() {
 			log.Info("waiting for rate limit on outgoing messages")
 			time.Sleep(d)
 			if d < 20*time.Second {
@@ -94,7 +81,6 @@ func notify() {
 			m = Message{
 				UserID: u.ID,
 				Meta:   false,
-				SendID: sendID,
 			}
 			if err := tx.Insert(&m); err != nil {
 				return fmt.Errorf("inserting sent message: %v", err)
@@ -113,26 +99,21 @@ func notify() {
 			return
 		}
 
-		smtpTake()
+		sendTake()
 
-		var senderr error
-		if smtpconn == nil {
-			dialctx, dialcancel := context.WithTimeout(ctx, 10*time.Second)
-			smtpconn, senderr = smtpDial(dialctx)
-			dialcancel()
-		}
-		if senderr == nil {
-			submitctx, submitcancel := context.WithTimeout(ctx, 10*time.Second)
-			senderr = smtpSubmit(submitctx, smtpconn, false, mailFrom, u.Email, msg, eightbit, smtputf8)
-			submitcancel()
-		}
-		if senderr != nil {
+		sendctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+		sendID, err := send(sendctx, false, u, "", subject, text, html)
+		cancel()
+		if err != nil {
 			// todo: we could remove the message and mark the updates as not-notified
-			log.Error("sending update notification message", "err", senderr)
-			m.Error = fmt.Sprintf("submit: %s", senderr)
-			if err := database.Update(context.Background(), &m); err != nil {
-				log.Error("marking message submission failed", "err", err)
-			}
+			log.Error("sending update notification message", "err", err)
+			m.Failed = true
+			m.Error = fmt.Sprintf("send: %s", err)
+		}
+		m.SendID = sendID
+		if err := database.Update(context.Background(), &m); err != nil {
+			log.Error("storing submission result", "err", err)
 		}
 	}
 }

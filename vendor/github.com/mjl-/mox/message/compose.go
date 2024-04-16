@@ -32,10 +32,14 @@ type Composer struct {
 
 // NewComposer initializes a new composer with a buffered writer around w, and
 // with a maximum message size if maxSize is greater than zero.
+//
+// smtputf8 must be set when the message must be delivered with smtputf8: if any
+// email address localpart has non-ascii (utf-8).
+//
 // Operations on a Composer do not return an error. Caller must use recover() to
 // catch ErrCompose and optionally ErrMessageSize errors.
-func NewComposer(w io.Writer, maxSize int64) *Composer {
-	return &Composer{bw: bufio.NewWriter(w), maxSize: maxSize}
+func NewComposer(w io.Writer, maxSize int64, smtputf8 bool) *Composer {
+	return &Composer{bw: bufio.NewWriter(w), maxSize: maxSize, SMTPUTF8: smtputf8, Has8bit: smtputf8}
 }
 
 // Write implements io.Writer, but calls panic (that is handled higher up) on
@@ -137,7 +141,7 @@ func (c *Composer) Line() {
 // with newlines (lf), which are replaced with crlf. The returned text may be
 // quotedprintable, if needed. The returned ct and cte headers are for use with
 // Content-Type and Content-Transfer-Encoding headers.
-func (c *Composer) TextPart(text string) (textBody []byte, ct, cte string) {
+func (c *Composer) TextPart(subtype, text string) (textBody []byte, ct, cte string) {
 	if !strings.HasSuffix(text, "\n") {
 		text += "\n"
 	}
@@ -158,7 +162,7 @@ func (c *Composer) TextPart(text string) (textBody []byte, ct, cte string) {
 		cte = "7bit"
 	}
 
-	ct = mime.FormatMediaType("text/plain", map[string]string{"charset": charset})
+	ct = mime.FormatMediaType("text/"+subtype, map[string]string{"charset": charset})
 	return []byte(text), ct, cte
 }
 

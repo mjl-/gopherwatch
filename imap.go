@@ -46,12 +46,12 @@ func imapresult(result imapclient.Result, err error) error {
 
 // make an IMAP connection, and select the inbox.
 func imapConnectSelect() (rimapconn *imapclient.Conn, rerr error) {
-	addr := net.JoinHostPort(config.IMAP.Host, fmt.Sprintf("%d", config.IMAP.Port))
+	addr := net.JoinHostPort(config.SubmissionIMAP.IMAP.Host, fmt.Sprintf("%d", config.SubmissionIMAP.IMAP.Port))
 
 	var conn net.Conn
 	var err error
-	if config.IMAP.TLS {
-		config := tls.Config{InsecureSkipVerify: config.IMAP.TLSSkipVerify}
+	if config.SubmissionIMAP.IMAP.TLS {
+		config := tls.Config{InsecureSkipVerify: config.SubmissionIMAP.IMAP.TLSSkipVerify}
 		conn, err = tls.Dial("tcp", addr, &config)
 	} else {
 		conn, err = net.Dial("tcp", addr)
@@ -80,7 +80,7 @@ func imapConnectSelect() (rimapconn *imapclient.Conn, rerr error) {
 		}
 	}()
 
-	_, result, err := imapconn.AuthenticateSCRAM("SCRAM-SHA-256", sha256.New, config.IMAP.Username, config.IMAP.Password)
+	_, result, err := imapconn.AuthenticateSCRAM("SCRAM-SHA-256", sha256.New, config.SubmissionIMAP.IMAP.Username, config.SubmissionIMAP.IMAP.Password)
 	if err := imapresult(result, err); err != nil {
 		return nil, fmt.Errorf("imap authenticate: %v", err)
 	}
@@ -176,8 +176,8 @@ func imapProcess() error {
 	defer imapconn.Close()
 
 	// Search messages that we haven't processed yet, and aren't read yet.
-	prefix := config.IMAP.KeywordPrefix
-	untagged, result, err := imapconn.Transactf("uid search return (all) unseen unkeyword %ssignup unkeyword %sdsn unkeyword %signored unkeyword %sproblem", prefix, prefix, prefix, prefix)
+	kwprefix := config.KeywordPrefix
+	untagged, result, err := imapconn.Transactf("uid search return (all) unseen unkeyword %ssignup unkeyword %sdsn unkeyword %signored unkeyword %sproblem", kwprefix, kwprefix, kwprefix, kwprefix)
 	if err := imapresult(result, err); err != nil {
 		return fmt.Errorf("imap search: %v", err)
 	}
@@ -206,7 +206,7 @@ func imapProcess() error {
 				} else if problem != "" {
 					metricIncomingProblem.Inc()
 					slog.Info("problem processing message, marking as failed", "uid", uid, "problem", problem)
-					_, sresult, err := imapconn.Transactf("uid store %d +flags.silent (%sproblem)", uid, config.IMAP.KeywordPrefix)
+					_, sresult, err := imapconn.Transactf("uid store %d +flags.silent (%sproblem)", uid, kwprefix)
 					if err := imapresult(sresult, err); err != nil {
 						return fmt.Errorf("setting flag problem: %v", err)
 					}
@@ -284,9 +284,11 @@ func processMessage(imapconn *imapclient.Conn, uid uint32) (problem string, rerr
 		return fmt.Sprintf("imap server did not send all requested fields, envelope %v, flags %v, body %v, bodystructure %v", fetchEnv != nil, fetchFlags != nil, fetchBody != nil, fetchBodystructure != nil), nil
 	}
 
+	kwprefix := config.KeywordPrefix
+
 	// We should only be processing messages without certain flags.
 	for _, flag := range *fetchFlags {
-		if strings.EqualFold(flag, `\Seen`) || strings.EqualFold(flag, config.IMAP.KeywordPrefix+"signup") || strings.EqualFold(flag, config.IMAP.KeywordPrefix+"dsn") || strings.EqualFold(flag, config.IMAP.KeywordPrefix+"ignored") {
+		if strings.EqualFold(flag, `\Seen`) || strings.EqualFold(flag, kwprefix+"signup") || strings.EqualFold(flag, kwprefix+"dsn") || strings.EqualFold(flag, kwprefix+"ignored") {
 			log.Error("bug: message already has flag? continuing", "flag", flag)
 		}
 	}
@@ -341,8 +343,8 @@ func processMessage(imapconn *imapclient.Conn, uid uint32) (problem string, rerr
 		}
 
 		toAddr := parseAddress(env.To[0])
-		expAddr := smtp.Address{Localpart: config.Submission.From.ParsedLocalpartBase, Domain: config.Submission.From.DNSDomain}
-		if toAddr != expAddr {
+		expAddr := config.SignupAddress
+		if toAddr.String() != expAddr {
 			return fmt.Sprintf(`signup message "to" unrecognized address %s, expecting %s`, toAddr, expAddr), nil
 		}
 		fromAddr := parseAddress(env.From[0])
@@ -436,7 +438,7 @@ func processMessage(imapconn *imapclient.Conn, uid uint32) (problem string, rerr
 		// If user exists, we'll send a password reset. Like the regular signup form.
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
-		user, msg, mailFrom, eightbit, smtputf8, m, err := signup(ctx, fromAddr, env.MessageID, false)
+		user, m, subject, text, html, err := signup(ctx, fromAddr, false)
 		if err != nil {
 			return fmt.Sprintf("registering signup for user %q: %v", fromAddr.String(), err), nil
 		} else if user.ID == 0 {
@@ -445,7 +447,7 @@ func processMessage(imapconn *imapclient.Conn, uid uint32) (problem string, rerr
 		}
 
 		// Check if we can send. If not, abort.
-		for i := 0; !smtpCanSend(); i++ {
+		for i := 0; !sendCan(); i++ {
 			if i >= 15 {
 				return "signup reply not sent due to outgoing rate limit", nil
 			}
@@ -453,23 +455,25 @@ func processMessage(imapconn *imapclient.Conn, uid uint32) (problem string, rerr
 		}
 
 		log.Info("marking message as signup before sending")
-		_, sresult, err := imapconn.Transactf(`uid store %d +flags.silent (%ssignup)`, uid, config.IMAP.KeywordPrefix)
+		_, sresult, err := imapconn.Transactf(`uid store %d +flags.silent (%ssignup)`, uid, kwprefix)
 		if err := imapresult(sresult, err); err != nil {
 			return fmt.Sprintf("setting flag signup: %v", err), nil
 		}
 
-		// Send message.
-		smtpconn, err := smtpDial(ctx)
-		if err == nil {
-			defer smtpconn.Close()
-			err = smtpSubmit(ctx, smtpconn, true, mailFrom, user.Email, msg, eightbit, smtputf8)
-		}
+		sendTake()
+
+		sendID, err := send(context.TODO(), true, user, env.MessageID, subject, text, html)
 		if err != nil {
 			logErrorx("submission for signup/passwordreset", err, "userid", user.ID)
 			if err := database.Delete(context.Background(), &m); err != nil {
 				logErrorx("removing metamessage added before submission error", err)
 			}
-			return fmt.Sprintf("dialing submission for signup reply to %q: %v", fromAddr.String(), err), nil
+			return fmt.Sprintf("sending signup/passwordreset for message %q: %v", user.Email, err), nil
+		}
+		m.SendID = sendID
+		if err := database.Update(context.TODO(), &m); err != nil {
+			logErrorx("setting sendid for sent message after submitting", err)
+			return fmt.Sprintf("setting sendid for sent message after submitting: %v", err), nil
 		}
 
 		_, sresult, err = imapconn.Transactf(`uid store %d +flags.silent (\seen \answered)`, uid)
@@ -506,7 +510,7 @@ func processMessage(imapconn *imapclient.Conn, uid uint32) (problem string, rerr
 	}
 	if !isdsn {
 		log.Info("marking message as ignored")
-		_, sresult, err := imapconn.Transactf("uid store %d +flags.silent (%signored)", uid, config.IMAP.KeywordPrefix)
+		_, sresult, err := imapconn.Transactf("uid store %d +flags.silent (%signored)", uid, kwprefix)
 		if err := imapresult(sresult, err); err != nil {
 			return "", fmt.Errorf("setting flag ignored: %v", err)
 		}
@@ -582,7 +586,7 @@ func processMessage(imapconn *imapclient.Conn, uid uint32) (problem string, rerr
 			return fmt.Sprintf("processing as dsn: %v", err), nil
 		}
 	}
-	flags := []string{config.IMAP.KeywordPrefix + "dsn"}
+	flags := []string{kwprefix + "dsn"}
 	var more string
 	if badsyntax {
 		more = "dsnsyntax"
@@ -594,7 +598,7 @@ func processMessage(imapconn *imapclient.Conn, uid uint32) (problem string, rerr
 	if more == "" {
 		flags = append(flags, `\seen`)
 	} else {
-		flags = append(flags, config.IMAP.KeywordPrefix+more)
+		flags = append(flags, kwprefix+more)
 	}
 	_, result, err := imapconn.Transactf("uid store %d +flags.silent (%s)", uid, strings.Join(flags, " "))
 	if err := imapresult(result, err); err != nil {
@@ -633,10 +637,16 @@ func processDSN(uid uint32, sendID string, dsnmsg *dsn.Message, dsnData string) 
 		known = m.Failed
 		userID = m.UserID
 		m.Modified = time.Now()
-		m.Failed = true
+		m.Failed = rcpt.Action == dsn.Failed || rcpt.Action == dsn.Delayed
 		m.TemporaryFailure = rcpt.Action == dsn.Delayed
-		m.Error = rcpt.Status // todo: could include more, like the textual part of the message
+		if m.Failed {
+			// todo: could include more, like the textual part of the message
+			m.Error = rcpt.Status
+		} else {
+			m.Error = ""
+		}
 		m.DSNData += dsnData + "\n\n"
+		m.History = append(m.History, fmt.Sprintf("dsn action %q, failed %v, temporary %v, error %q, time %s", rcpt.Action, m.Failed, m.TemporaryFailure, rcpt.Status, m.Modified))
 		if err := tx.Update(&m); err != nil {
 			return fmt.Errorf("updating message in database: %v", err)
 		}
@@ -664,45 +674,10 @@ func processDSN(uid uint32, sendID string, dsnmsg *dsn.Message, dsnData string) 
 			return nil
 		}
 
-		// We start/extend backing off from sending more messages. We don't look at whether
-		// this is a permanent or temporary failure. We'll retry after a while anyway, best
-		// to hold off until we know more. Backoff is potentially reset when we look at
-		// whether we should send a message again.
-		if user.Backoff == BackoffNone || time.Since(user.BackoffUntil) > 0 && user.Backoff < BackoffPermanent {
-			if user.Backoff == BackoffNone {
-				user.BackoffUntil = time.Now()
-			}
-			// Set new Backoff end time (unless already permanent).
-			user.Backoff++
-			// If we are likely blocklisted, backoff for a week. The blocklist is likely not
-			// resolved in a day, and sending more messages may contribute to staying
-			// blocklisted.
-			if rcpt.Status == "5."+smtp.SePol7DeliveryUnauth1 && user.Backoff < BackoffWeek {
-				user.Backoff = BackoffWeek
-			}
-			if user.Backoff < BackoffPermanent {
-				d := 24 * time.Hour
-				if user.Backoff >= BackoffWeek {
-					d *= 7
-				}
-				if user.Backoff >= BackoffMonth {
-					d *= 31
-				}
-				user.BackoffUntil = user.BackoffUntil.Add(d)
-			}
-			// Reset whether we've "tried" after the end time. When we check if we can send,
-			// we'll optimistically try again after the end time, to recover to regular
-			// sending.
-			user.BackoffTried = false
-			if err := tx.Update(&user); err != nil {
-				return fmt.Errorf("starting/extending backoff for user: %v", err)
-			}
-			if err := addUserLogf(tx, user.ID, "Received dsn %q, starting/extending backoff until %s", rcpt.Action, user.BackoffUntil.UTC()); err != nil {
-				return fmt.Errorf("marking dsn in userlog: %v", err)
-			}
-		} else if err := addUserLogf(tx, user.ID, "Received dsn %q, no backoff extension/start", rcpt.Action); err != nil {
-			return fmt.Errorf("marking dsn in userlog: %v", err)
+		if err := markBackoff(tx, &user, string(rcpt.Action), rcpt.Status); err != nil {
+			return err
 		}
+
 		return nil
 	})
 	return recognized, err

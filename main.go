@@ -15,6 +15,7 @@ import (
 	htmltemplate "html/template"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
 	"sort"
 	"strings"
@@ -28,6 +29,7 @@ import (
 	"github.com/mjl-/bstore"
 	"github.com/mjl-/mox/dns"
 	"github.com/mjl-/mox/smtp"
+	"github.com/mjl-/mox/webapi"
 	"github.com/mjl-/sconf"
 	"github.com/mjl-/sherpa"
 	"github.com/mjl-/sherpadoc"
@@ -40,6 +42,8 @@ var database *bstore.DB
 // The sumdb transparency log we keep moving forward, verifying the new entries and
 // matching new packages against subscriptions.
 var tlogclient *Client
+
+var webapiClient loggingWebAPIClient
 
 // For Message-ID headers.
 var hostname string
@@ -111,24 +115,49 @@ func mustParseAPI(api string, buf []byte) (doc sherpadoc.Section) {
 var config Config
 
 type Config struct {
-	BaseURL                  string        `sconf-doc:"URL to where this gopherwatch is hosted, without trailing slash, it is added when composing URLs."`
-	TokenSecret              string        `sconf-doc:"Secret used for signing and verifying tokens. Used in HMAC."`
-	ServiceName              string        `sconf-doc:"Public name of this service, e.g. GopherWatch.org, or another domain-like name. Also used in the subject of signup emails."`
-	Admin                    Admin         `sconf-doc:"Information about the admin."`
-	SubjectPrefix            string        `sconf-doc:"Prefix to add to subject for outgoing messages. E.g. 'GopherWatch: ' or '[GophererWatch] '."`
-	ReverseProxied           bool          `sconf-doc:"Whether incoming requests are reverse proxied. If set, X-Forwarded-* headers are taken into account for evaluation use of HTTPS (for secure cookies) and remote IP address (for rate limiting)."`
-	DailyMetaMessagesMax     int           `sconf-doc:"Maximum number of meta email messages to send to a single email recipient in the last 24 hours. This rate limits the outgoing messages about password resets. Not update messages."`
-	EmailUpdateInterval      time.Duration `sconf-doc:"Minimum interval between sending an email about module/version updates to an email address. To prevent sending too many."`
-	SignupEmailDisabled      bool          `sconf:"optional" sconf-doc:"Whether signup via email is disabled."`
-	SignupWebsiteDisabled    bool          `sconf:"optional" sconf-doc:"Whether signup via website is disabled."`
-	ModuleVersionHistorySize int64         `sconf-doc:"Number of most recent modules/versions seen in transparency log to keep in database. If <= 0, all are kept."`
-	SumDB                    SumDB         `sconf-doc:"Transparency log that we are following. The verifier key cannot be changed after initializing the state."`
-	IndexBaseURL             string        `sconf:"optional" sconf-doc:"Base URL of index, e.g. https://index.golang.org. Only used for explicitly trying to forward to the latest, non-cached module added to the transparency log."`
-	Submission               Submission    `sconf-doc:"For sending email message."`
-	IMAP                     IMAP          `sconf-doc:"For waiting for, and processing DSN messages. If we receive DSNs about an email address, we disable sending further messages."`
-	SkipModulePrefixes       []string      `sconf:"optional" sconf-doc:"Modules matching this prefix (e.g. 'githubmirror.example.com/') are not notified about, and not shown on the home page."`
-	SkipModulePaths          []string      `sconf-doc:"Module paths that we won't notify about. E.g. the bare github.com, which would result in too many matches and notification emails."`
-	WebhooksAllowInteralIPs  bool          `sconf:"optional" sconf-doc:"Allow delivering webhooks to internal IPs."`
+	BaseURL                  string          `sconf-doc:"URL to where this gopherwatch is hosted, without trailing slash, it is added when composing URLs."`
+	TokenSecret              string          `sconf-doc:"Secret used for signing and verifying tokens. Used in HMAC."`
+	ServiceName              string          `sconf-doc:"Public name of this service, e.g. GopherWatch.org, or another domain-like name. Also used in the subject of signup emails."`
+	Admin                    Admin           `sconf-doc:"Information about the admin."`
+	SubjectPrefix            string          `sconf-doc:"Prefix to add to subject for outgoing messages. E.g. 'GopherWatch: ' or '[GophererWatch] '."`
+	ReverseProxied           bool            `sconf-doc:"Whether incoming requests are reverse proxied. If set, X-Forwarded-* headers are taken into account for evaluation use of HTTPS (for secure cookies) and remote IP address (for rate limiting)."`
+	DailyMetaMessagesMax     int             `sconf-doc:"Maximum number of meta email messages to send to a single email recipient in the last 24 hours. This rate limits the outgoing messages about password resets. Not update messages."`
+	EmailUpdateInterval      time.Duration   `sconf-doc:"Minimum interval between sending an email about module/version updates to an email address. To prevent sending too many."`
+	SignupEmailDisabled      bool            `sconf:"optional" sconf-doc:"Whether signup via email is disabled."`
+	SignupWebsiteDisabled    bool            `sconf:"optional" sconf-doc:"Whether signup via website is disabled."`
+	ModuleVersionHistorySize int64           `sconf-doc:"Number of most recent modules/versions seen in transparency log to keep in database. If <= 0, all are kept."`
+	SumDB                    SumDB           `sconf-doc:"Transparency log that we are following. The verifier key cannot be changed after initializing the state."`
+	IndexBaseURL             string          `sconf:"optional" sconf-doc:"Base URL of index, e.g. https://index.golang.org. Only used for explicitly trying to forward to the latest, non-cached module added to the transparency log."`
+	SignupAddress            string          `sconf-doc:"Address to which signup emails should be sent."`
+	KeywordPrefix            string          `sconf:"optional" sconf-doc:"Prefix of keywords (or flags/tags) set on incoming messages to indicate whether they have been processed. E.g. 'gopherwatch:'."`
+	SubmissionIMAP           *SubmissionIMAP `sconf:"optional" sconf-doc:"Configuration for sending/receiving email with SMTP submission and IMAP."`
+	Mox                      *Mox            `sconf:"optional" sconf-doc:"Configuration for sending/receiving email with mox webapi."`
+	SkipModulePrefixes       []string        `sconf:"optional" sconf-doc:"Modules matching this prefix (e.g. 'githubmirror.example.com/') are not notified about, and not shown on the home page."`
+	SkipModulePaths          []string        `sconf-doc:"Module paths that we won't notify about. E.g. the bare github.com, which would result in too many matches and notification emails."`
+	WebhooksAllowInteralIPs  bool            `sconf:"optional" sconf-doc:"Allow delivering webhooks to internal IPs."`
+}
+
+type SubmissionIMAP struct {
+	Submission Submission `sconf-doc:"For sending email message."`
+	IMAP       IMAP       `sconf-doc:"For waiting for, and processing DSN messages. If we receive DSNs about an email address, we disable sending further messages."`
+}
+
+type Mox struct {
+	WebAPI  WebAPI  `sconf-doc:"For making API calls."`
+	Webhook Webhook `sconf-doc:"For authentication of incoming webhook calls."`
+}
+
+type WebAPI struct {
+	BaseURL  string `sconf-doc:"BaseURL of webapi, typically ending in /webapi/v0/."`
+	Username string `sconf-doc:"Used for HTTP Basic authentication at BaseURL."`
+	Password string
+}
+
+type Webhook struct {
+	OutgoingPath string `sconf-doc:"Path on webhook listener to handle calls for outgoing deliveries on."`
+	IncomingPath string `sconf-doc:"Path on webhook listener for handling incoming deliveries."`
+	Username     string `sconf-doc:"HTTP basic auth to require for incoming webhook calls."`
+	Password     string
 }
 
 type Admin struct {
@@ -144,9 +173,10 @@ type SumDB struct {
 }
 
 type SubmissionFrom struct {
-	Name                string         `sconf-doc:"Display name for use in message From headers."`
-	LocalpartBase       string         `sconf-doc:"Localpart of the 'From' email address. Used in From message header. The SMTP MAIL FROM address starts with this localpart, then '+' and a per-message unique ID is added."`
-	Domain              string         `sconf-doc:"Domain used to compose the email address."`
+	Name          string `sconf-doc:"Display name for use in message From headers."`
+	LocalpartBase string `sconf-doc:"Localpart of the 'From' email address. Used in From message header. The SMTP MAIL FROM address starts with this localpart, then '+' and a per-message unique ID is added."`
+	Domain        string `sconf-doc:"Domain used to compose the email address."`
+
 	ParsedLocalpartBase smtp.Localpart `sconf:"-"`
 	DNSDomain           dns.Domain     `sconf:"-"`
 }
@@ -167,7 +197,6 @@ type IMAP struct {
 	TLSSkipVerify bool   `sconf:"optional" sconf-doc:"If set, not TLS certificate validation is done."`
 	Username      string `sconf-doc:"Username for account."`
 	Password      string `sconf-doc:"Password for account."`
-	KeywordPrefix string `sconf:"optional" sconf-doc:"Prefix of keywords (or flags/tags) set on incoming messages to indicate whether they have been processed. E.g. 'gopherwatch:'."`
 }
 
 func random() string {
@@ -202,7 +231,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, "usage: gopherwatch serve [flags]")
 		fmt.Fprintln(os.Stderr, "       gopherwatch describeconf >gopherwatch.conf")
 		fmt.Fprintln(os.Stderr, "       gopherwatch checkconf gopherwatch.conf")
-		fmt.Fprintln(os.Stderr, "       gopherwatch genconf >gopherwatch.conf")
+		fmt.Fprintln(os.Stderr, "       gopherwatch genconf [-mox] >gopherwatch.conf")
 		flag.PrintDefaults()
 		os.Exit(2)
 	}
@@ -232,23 +261,33 @@ func main() {
 			logFatalx("parsing config", err)
 		}
 	case "genconf":
-		if len(args) != 0 {
-			flag.Usage()
-		}
 		config = Config{
-			BaseURL:                 "http://localhost:8073",
-			TokenSecret:             random(),
-			ServiceName:             "gopherwatch.localhost",
-			Admin:                   Admin{Address: "gopherwatch@localhost", Password: random()},
-			SubjectPrefix:           "GopherWatch: ",
-			DailyMetaMessagesMax:    10,
-			SumDB:                   SumDB{"https://sum.golang.org", "sum.golang.org+033de0ae+Ac4zctda0e5eza+HJyk9SxEdh+s3Ux18htTTAD8OuAn8", 10 * time.Minute},
-			IndexBaseURL:            "https://index.golang.org",
-			Submission:              Submission{"localhost", 1465, true, true, "mox@localhost", "moxmoxmox", SubmissionFrom{"gopherwatch", "mox", "localhost", "", dns.Domain{}}},
-			IMAP:                    IMAP{"localhost", 1993, true, true, "mox@localhost", "moxmoxmox", "gw:"},
+			BaseURL:              "http://localhost:8073",
+			TokenSecret:          random(),
+			ServiceName:          "gopherwatch.localhost",
+			Admin:                Admin{Address: "gopherwatch@localhost", Password: random()},
+			SubjectPrefix:        "GopherWatch: ",
+			DailyMetaMessagesMax: 10,
+			SumDB:                SumDB{"https://sum.golang.org", "sum.golang.org+033de0ae+Ac4zctda0e5eza+HJyk9SxEdh+s3Ux18htTTAD8OuAn8", 10 * time.Minute},
+			IndexBaseURL:         "https://index.golang.org",
+			SignupAddress:        "gopherwatch@localhost",
+			KeywordPrefix:        "gw:",
+			SubmissionIMAP: &SubmissionIMAP{
+				Submission: Submission{"localhost", 1465, true, true, "mox@localhost", "moxmoxmox", SubmissionFrom{"gopherwatch", "mox", "localhost", "", dns.Domain{}}},
+				IMAP:       IMAP{"localhost", 1993, true, true, "mox@localhost", "moxmoxmox"},
+			},
 			SkipModulePrefixes:      []string{"github.1git.de/", "github.hscsec.cn/", "github.phpd.cn/", "github.skymusic.top/"},
 			SkipModulePaths:         []string{"github.com"},
 			WebhooksAllowInteralIPs: true,
+		}
+		if len(args) == 1 && args[0] == "-mox" {
+			config.SubmissionIMAP = nil
+			config.Mox = &Mox{
+				WebAPI{"http://mox@localhost:moxmoxmox@localhost:1080/webapi/v0/", "mox@localhost", "moxmoxmox"},
+				Webhook{"/webhook/outgoing", "/webhook/incoming", "gopherwatch", random()},
+			}
+		} else if len(args) != 0 {
+			flag.Usage()
 		}
 		if err := sconf.Describe(os.Stdout, config); err != nil {
 			logFatalx("describing config", err)
@@ -281,14 +320,32 @@ func parseConfig(filename string) error {
 		return err
 	}
 
-	config.Submission.From.ParsedLocalpartBase, err = smtp.ParseLocalpart(config.Submission.From.LocalpartBase)
-	if err != nil {
-		return fmt.Errorf("parsing localpart of submission from: %v", err)
+	if _, err := smtp.ParseAddress(config.SignupAddress); err != nil {
+		return fmt.Errorf("parsing signup address %q: %v", config.SignupAddress, err)
 	}
 
-	config.Submission.From.DNSDomain, err = dns.ParseDomain(config.Submission.From.Domain)
-	if err != nil {
-		return fmt.Errorf("parsing dns of submission from domain: %v", err)
+	if config.SubmissionIMAP == nil && config.Mox == nil {
+		return fmt.Errorf("require either SubmissionIMAP or Mox")
+	} else if config.SubmissionIMAP != nil && config.Mox != nil {
+		return fmt.Errorf("require either SubmissionIMAP or Mox, not both")
+	} else if config.SubmissionIMAP != nil {
+		config.SubmissionIMAP.Submission.From.ParsedLocalpartBase, err = smtp.ParseLocalpart(config.SubmissionIMAP.Submission.From.LocalpartBase)
+		if err != nil {
+			return fmt.Errorf("parsing localpart of submission from: %v", err)
+		}
+
+		config.SubmissionIMAP.Submission.From.DNSDomain, err = dns.ParseDomain(config.SubmissionIMAP.Submission.From.Domain)
+		if err != nil {
+			return fmt.Errorf("parsing dns of submission from domain: %v", err)
+		}
+	} else {
+		_, err := url.Parse(config.Mox.WebAPI.BaseURL)
+		if err != nil {
+			return fmt.Errorf("parsing mox webapi baseurl: %v", err)
+		}
+		if config.Mox.Webhook.OutgoingPath == config.Mox.Webhook.IncomingPath {
+			return fmt.Errorf("cannot use same path for webhooks about outgoing and incoming deliveries")
+		}
 	}
 
 	config.Admin.AddressParsed, err = smtp.ParseAddress(config.Admin.Address)
@@ -304,12 +361,13 @@ var testlog, resetTree bool
 func serve(args []string) {
 	fs := flag.NewFlagSet("serve", flag.ExitOnError)
 	var configPath string
-	var listenAddr, metricsAddr, adminAddr string
+	var listenAddr, metricsAddr, adminAddr, webhookAddr string
 	var dbpath string
 	fs.StringVar(&configPath, "config", "gopherwatch.conf", "path to config file")
 	fs.StringVar(&listenAddr, "listenaddr", "127.0.0.1:8073", "address to listen and serve public gopherwatch on")
 	fs.StringVar(&metricsAddr, "metricsaddr", "127.0.0.1:8074", "address to listen and serve metrics on")
 	fs.StringVar(&adminAddr, "adminaddr", "127.0.0.1:8075", "address to listen and serve the admin requests on")
+	fs.StringVar(&webhookAddr, "webhookaddr", "127.0.0.1:8076", "address to listen and serve the mox webhook requests on")
 	fs.StringVar(&dbpath, "dbpath", "gopherwatch.db", "database, with users, subscriptions, etc")
 	fs.BoolVar(&testlog, "testlog", false, "use preset sumdb positions, forward the log only manually through api call; for testing")
 	fs.BoolVar(&resetTree, "resettree", false, "reset tree state, useful to prevent catching up for a long time after not running local/test instance for a while")
@@ -738,9 +796,24 @@ func serve(args []string) {
 		}
 	})
 
-	// Watch mailbox over IMAP for DSNs and signup messages. uses IMAP IDLE to wait for
-	// incoming messages.
-	go mailWatch()
+	var webhookMux *http.ServeMux
+	if config.SubmissionIMAP != nil {
+		// Watch mailbox over IMAP for DSNs and signup messages. uses IMAP IDLE to wait for
+		// incoming messages.
+		go mailWatch()
+	} else {
+		// Register HTTP handler for webhooks.
+		webhookMux = http.NewServeMux()
+		webhookMux.HandleFunc(config.Mox.Webhook.OutgoingPath, webhookOutgoing)
+		webhookMux.HandleFunc(config.Mox.Webhook.IncomingPath, webhookIncoming)
+
+		webapiClient = loggingWebAPIClient{webapi.Client{
+			BaseURL:    config.Mox.WebAPI.BaseURL,
+			Username:   config.Mox.WebAPI.Username,
+			Password:   config.Mox.WebAPI.Password,
+			HTTPClient: &http.Client{Transport: transportShortIdle()},
+		}}
+	}
 
 	// Start delivery of webhooks.
 	go deliverHooks()
@@ -757,8 +830,21 @@ func serve(args []string) {
 			logFatalx("admin listener", http.ListenAndServe(adminAddr, nil))
 		}()
 	}
+	if webhookMux != nil && webhookAddr != "" {
+		slog.Warn("listening for webhooks", "webhookaddr", webhookAddr)
+		go func() {
+			logFatalx("webhook listener", http.ListenAndServe(webhookAddr, webhookMux))
+		}()
+	}
 	slog.Warn("listening for public", "addr", listenAddr)
 	logFatalx("public listener", http.ListenAndServe(listenAddr, publicMux))
+}
+
+func transportShortIdle() *http.Transport {
+	t := http.DefaultTransport.(*http.Transport).Clone()
+	t.MaxIdleConns = 3
+	t.IdleConnTimeout = 5 * time.Second
+	return t
 }
 
 type dbtype struct {

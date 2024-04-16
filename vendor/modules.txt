@@ -16,7 +16,7 @@ github.com/mjl-/adns/internal/singleflight
 # github.com/mjl-/bstore v0.0.5
 ## explicit; go 1.19
 github.com/mjl-/bstore
-# github.com/mjl-/mox v0.0.11-0.20240313163553-2c9cb5b847a7
+# github.com/mjl-/mox v0.0.11-0.20240416121811-daa88480cb69
 ## explicit; go 1.21
 github.com/mjl-/mox/dane
 github.com/mjl-/mox/dns
@@ -33,13 +33,15 @@ github.com/mjl-/mox/smtp
 github.com/mjl-/mox/smtpclient
 github.com/mjl-/mox/stub
 github.com/mjl-/mox/tlsrpt
-# github.com/mjl-/sconf v0.0.5
+github.com/mjl-/mox/webapi
+github.com/mjl-/mox/webhook
+# github.com/mjl-/sconf v0.0.6
 ## explicit; go 1.12
 github.com/mjl-/sconf
 # github.com/mjl-/sherpa v0.6.7
 ## explicit; go 1.12
 github.com/mjl-/sherpa
-# github.com/mjl-/sherpadoc v0.0.12
+# github.com/mjl-/sherpadoc v0.0.13
 ## explicit; go 1.16
 github.com/mjl-/sherpadoc
 github.com/mjl-/sherpadoc/cmd/sherpadoc

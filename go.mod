@@ -4,10 +4,10 @@ go 1.22.0
 
 require (
 	github.com/mjl-/bstore v0.0.5
-	github.com/mjl-/mox v0.0.11-0.20240313163553-2c9cb5b847a7
-	github.com/mjl-/sconf v0.0.5
+	github.com/mjl-/mox v0.0.11-0.20240416121811-daa88480cb69
+	github.com/mjl-/sconf v0.0.6
 	github.com/mjl-/sherpa v0.6.7
-	github.com/mjl-/sherpadoc v0.0.12
+	github.com/mjl-/sherpadoc v0.0.13
 	github.com/mjl-/sherpaprom v0.0.2
 	github.com/mjl-/sherpats v0.0.6
 	github.com/prometheus/client_golang v1.18.0

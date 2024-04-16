@@ -30,10 +30,20 @@ var (
 			Help: "Number of IMAP connections created.",
 		},
 	)
+	metricWebAPIResults = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "gopherwatch_webapi_results_total",
+			Help: "WebAPI requests and results.",
+		},
+		[]string{
+			"method", // Name of method, e.g. Send.
+			"result", // "ok", "error" or specific error code.
+		},
+	)
 	metricIncomingProcessErrors = promauto.NewCounter(
 		prometheus.CounterOpts{
 			Name: "gopherwatch_incoming_process_errors_total",
-			Help: "Number of errors while processing incoming messages over IMAP.",
+			Help: "Number of errors while processing incoming messages over IMAP/webhooks.",
 		},
 	)
 	metricIncomingIgnored = promauto.NewCounter(
@@ -59,6 +69,19 @@ var (
 			Name: "gopherwatch_incoming_signup_total",
 			Help: "Number of successfully handled signup messages.",
 		},
+	)
+	metricWebhookIncoming = promauto.NewCounter(
+		prometheus.CounterOpts{
+			Name: "gopherwatch_webhook_incoming_total",
+			Help: "Number of webhook calls about incoming deliveries.",
+		},
+	)
+	metricWebhookOutgoing = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "gopherwatch_webhook_outgoing_total",
+			Help: "Number of webhook calls for outgoing deliveries, per event type.",
+		},
+		[]string{"event"},
 	)
 	metricSumdbRequests = promauto.NewGauge(
 		prometheus.GaugeOpts{

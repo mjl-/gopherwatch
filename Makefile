@@ -1,10 +1,14 @@
-build:
+build: build0
+	CGO_ENABLED=0 go build
+
+build0:
 	CGO_ENABLED=0 go build
 	CGO_ENABLED=0 go vet
 	CGO_ENABLED=0 go run vendor/github.com/mjl-/sherpadoc/cmd/sherpadoc/*.go -adjust-function-names none API >api.json
 	./gents.sh api.json api.ts
-	# rebuild after new api.json
-	CGO_ENABLED=0 go build
+
+race: build0
+	go build -race
 
 testmode: build
 	./gopherwatch serve -testlog
@@ -12,8 +16,17 @@ testmode: build
 livemode: build
 	./gopherwatch serve
 
+livemode-mox: build
+	./gopherwatch serve -config gopherwatch-mox.conf
+
 livemode-resettree: build
 	./gopherwatch serve -resettree
+
+livemode-resettree-mox: build
+	./gopherwatch serve -resettree -config gopherwatch-mox.conf
+
+mox:
+	mox localserve -dir local/mox
 
 genconf: build
 	./gopherwatch genconf >new.conf

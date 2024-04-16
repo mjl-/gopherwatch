@@ -185,25 +185,18 @@ func (API) Signup(ctx context.Context, email string) {
 
 	xrate(ratelimitSignup, reqInfo.Request)
 
+	email = xcanonicalAddress(email)
 	emailAddr, err := smtp.ParseAddress(email)
 	xusercheckf(err, "validating address")
-	email = xcanonicalAddress(email)
 
-	// Make SMTP connection. If it fails, return error to user.
-	if !smtpCanSend() {
+	// Only continue if we can send email at the moment.
+	if !sendCan() {
 		xcheckf(errors.New("rate limiter"), "cannot send email verification messages at this moment, please try again soon")
 	}
-	smtpTake()
-	dialctx, dialcancel := context.WithTimeout(ctx, 10*time.Second)
-	smtpconn, err := smtpDial(dialctx)
-	dialcancel()
-	xcheckf(err, "preparing connection to mail server before creating user")
-	defer func() {
-		err := smtpconn.Close()
-		logCheck(err, "closing smtp connectiong")
-	}()
+	sendTake()
+	// todo: on error, release the smtp counter, otherwise repeated triggered errors can prevent outgoing emails
 
-	user, msg, mailFrom, eightbit, smtputf8, m, err := signup(ctx, emailAddr, "", true)
+	user, m, subject, text, html, err := signup(ctx, emailAddr, true)
 	if serr, ok := err.(*sherpa.Error); ok {
 		panic(serr)
 	}
@@ -213,22 +206,41 @@ func (API) Signup(ctx context.Context, email string) {
 		return
 	}
 
+	sendctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
 	// Send the message.
-	submitctx, submitcancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer submitcancel()
-	if err := smtpSubmit(submitctx, smtpconn, true, mailFrom, email, msg, eightbit, smtputf8); err != nil {
-		logErrorx("submission for signup/passwordreset", err, "userid", user.ID)
-		if err := database.Delete(context.Background(), &m); err != nil {
-			logErrorx("removing metamessage added before submission error", err)
-		}
-		xcheckf(err, "submitting verification/password reset email")
+	sendID, sendErr := send(sendctx, true, user, "", subject, text, html)
+	cancel()
+	// We interleave updating the database with sendErr handling below.
+
+	// First update database.
+	m.SendID = sendID
+	now := time.Now()
+	m.Submitted = now
+	m.Modified = now
+	if sendErr != nil {
+		m.Failed = true
+		m.Error = "submitting: " + sendErr.Error()
 	}
+	err = database.Update(context.Background(), &m)
+
+	// Handle sendErr.
+	if sendErr != nil {
+		logErrorx("submitting signup/passwordreset email", sendErr, "userid", user.ID)
+	}
+	xcheckf(sendErr, "submitting signup/passwordreset email")
+
+	// Return any database error.
+	if err != nil {
+		logErrorx("updating message after submitting for signup/passwordreset", err, "userid", user.ID)
+	}
+	xcheckf(err, "updating registration of sent message after submitting")
+
 	slog.Info("submitted signup/passwordreset email", "userid", user.ID)
 }
 
-func signup(ctx context.Context, email smtp.Address, origMessageID string, viaWebsite bool) (user User, msg []byte, mailFrom string, eightbit, smtputf8 bool, m Message, err error) {
-	var sendID string
-
+func signup(ctx context.Context, email smtp.Address, viaWebsite bool) (user User, m Message, subject, text, html string, err error) {
 	// Code below can raise panics with sherpa.Error. Catch them an return as regular error.
 	defer func() {
 		x := recover()
@@ -301,15 +313,12 @@ func signup(ctx context.Context, email smtp.Address, origMessageID string, viaWe
 				return fmt.Errorf("adding user to database: %v", err)
 			}
 
-			subject, text, html, err := composeSignup(user, viaWebsite)
+			subject, text, html, err = composeSignup(user, viaWebsite)
 			xcheckf(err, "composing signup text")
-			mailFrom, sendID, msg, eightbit, smtputf8, err = compose(true, user, origMessageID, subject, text, html)
-			xcheckf(err, "composing signup message")
 
 			m = Message{
 				UserID: user.ID,
 				Meta:   true,
-				SendID: sendID,
 			}
 			if err := tx.Insert(&m); err != nil {
 				return fmt.Errorf("adding outgoing message to database: %v", err)
@@ -332,15 +341,12 @@ func signup(ctx context.Context, email smtp.Address, origMessageID string, viaWe
 			return fmt.Errorf("updating user in database: %v", err)
 		}
 
-		subject, text, html, err := composePasswordReset(user, viaWebsite)
+		subject, text, html, err = composePasswordReset(user, viaWebsite)
 		xcheckf(err, "composing password reset text")
-		mailFrom, sendID, msg, eightbit, smtputf8, err = compose(true, user, origMessageID, subject, text, html)
-		xcheckf(err, "composing password reset message")
 
 		m = Message{
 			UserID: user.ID,
 			Meta:   true,
-			SendID: sendID,
 		}
 		if err := tx.Insert(&m); err != nil {
 			return fmt.Errorf("adding outgoing message to database: %v", err)
@@ -528,23 +534,14 @@ func (API) RequestPasswordReset(ctx context.Context, prepToken, email string) {
 	}
 	xcheckf(err, "requesting password reset")
 
+	sendctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
 	subject, text, html, err := composePasswordReset(user, true)
 	xcheckf(err, "composing password reset text")
 
-	mailFrom, sendID, msg, eightbit, smtputf8, err := compose(true, user, "", subject, text, html)
-	xcheckf(err, "composing password reset message")
-
-	smtpTake()
-	sendctx, sendcancel := context.WithTimeout(ctx, 10*time.Second)
-	defer sendcancel()
-	smtpconn, err := smtpDial(sendctx)
-	xcheckf(err, "dial smtp server")
-	defer func() {
-		err := smtpconn.Close()
-		logCheck(err, "closing smtp connection")
-	}()
-	err = smtpSubmit(sendctx, smtpconn, true, mailFrom, user.Email, msg, eightbit, smtputf8)
-	xcheckf(err, "sending email")
+	sendID, err := send(sendctx, true, user, "", subject, text, html)
+	xcheckf(err, "sending password reset message")
 
 	err = database.Write(context.Background(), func(tx *bstore.Tx) error {
 		m := Message{
@@ -1136,7 +1133,7 @@ func (API) Home(ctx context.Context) (home Home) {
 		SkipModulePrefixes:    config.SkipModulePrefixes,
 		SignupEmailDisabled:   config.SignupEmailDisabled,
 		SignupWebsiteDisabled: config.SignupWebsiteDisabled,
-		SignupAddress:         smtp.Address{Localpart: config.Submission.From.ParsedLocalpartBase, Domain: config.Submission.From.DNSDomain}.String(),
+		SignupAddress:         config.SignupAddress,
 	}
 
 	home.Recents = _recents(ctx, 15)
@@ -1260,15 +1257,9 @@ func (API) TestSend(ctx context.Context, secret, kind, email string) {
 	subject, text, html, err := composeSample(kind, u, loginToken)
 	xcheckf(err, "compose text")
 
-	mailFrom, sendID, msg, eightbit, smtputf8, err := compose(kind != "moduleupdates", u, "", config.SubjectPrefix+subject, text, html)
-	xcheckf(err, "compose message")
+	sendID, err := send(ctx, kind != "moduleupdates", u, "", config.SubjectPrefix+subject, text, html)
+	xcheckf(err, "send test message")
 	slog.Info("composed test message", "sendid", sendID)
-
-	smtpconn, err := smtpDial(ctx)
-	xcheckf(err, "dial smtp")
-	defer smtpconn.Close()
-	err = smtpSubmit(ctx, smtpconn, false, mailFrom, u.Email, msg, eightbit, smtputf8)
-	xcheckf(err, "submit message")
 }
 
 func xcheckhookurl(s string) {

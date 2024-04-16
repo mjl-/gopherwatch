@@ -211,9 +211,9 @@ type Message struct {
 	Meta   bool  // Like signup or password reset, instead of notification about module updates.
 
 	// Localpart of message-id, used in mail from when sending, so bounces will have it
-	// in Delivered-To, which we use for matching DSNs. Index to quickly lookup for
-	// incoming DSN.
-	SendID string `bstore:"nonzero,index"`
+	// in Delivered-To, which we use for matching DSNs or webhook calls.
+	// For submission, this is set when composing. For webapi, this is set after sending.
+	SendID string `bstore:"index"`
 	// For getting recent messages.
 	Submitted        time.Time `bstore:"nonzero,default now"`
 	Modified         time.Time `bstore:"nonzero,default now"`
@@ -223,6 +223,7 @@ type Message struct {
 	// Details of error. Can also be set when submission failed (i.e. local error).
 	Error   string
 	DSNData string
+	History []string // All events about delivery.
 }
 
 // ModuleVersion was (recently) encountered in the transparency log. We can keep a

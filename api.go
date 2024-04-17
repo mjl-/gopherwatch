@@ -466,7 +466,7 @@ func (API) UserRemove(ctx context.Context) {
 	})
 	xcheckf(err, "removing user account")
 
-	slog.Info("removed user account", "emailhash", sha256.Sum256([]byte(user.Email)), "userid", user.ID)
+	slog.Info("removed user account", "emailhash", opaque32(sha256.Sum256([]byte(user.Email))), "userid", user.ID)
 
 	// Remove cookie to prevent any attempt to use the old session for a user that no
 	// longer exists.
@@ -477,6 +477,13 @@ func (API) UserRemove(ctx context.Context) {
 		SameSite: http.SameSiteStrictMode,
 		MaxAge:   -1, // Delete cookie
 	})
+}
+
+type opaque32 [32]byte
+
+// used for logging raw bytes (a hash) as string, only formatting if log level matches.
+func (o opaque32) String() string {
+	return base64.RawURLEncoding.EncodeToString(o[:])
 }
 
 // Redeem turns a login token, as used in login-links in notification emails, into

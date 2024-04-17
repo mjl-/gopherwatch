@@ -386,6 +386,7 @@ func serve(args []string) {
 		logFatalx("parsing config file", err)
 	}
 
+	// todo: get fqdn from host somehow, only needed for smtp/imap-mode, where we compose our message ourselves and we use the hostname in message-id headers, which should be unique.
 	var err error
 	hostname, err = os.Hostname()
 	if err != nil {

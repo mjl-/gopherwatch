@@ -37,10 +37,12 @@ An HTTP POST to /webapi/v0/<method> calls a method.The form can be either
 "application/x-www-form-urlencoded" or "multipart/form-data".  Form field
 "request" must contain the request parameters, encoded as JSON.
 
-HTTP basic authentication is required for calling methods, with an email
-address as user name. Use a login address configured for "unique SMTP MAIL
-FROM" addresses, and configure a period to "keep retired messages delivered
-from the queue" for automatic suppression list management.
+HTTP basic authentication is required for calling methods, with an email address
+as user name. Use a login address configured for "unique SMTP MAIL FROM"
+addresses ("FromIDLoginAddresses" in the account configuration), and configure
+an interval to "keep retired messages delivered from the queue". This allows
+incoming DSNs to be matched to the original outgoing messages, and enables
+automatic suppression list management.
 
 HTTP response status 200 OK indicates a successful method call, status 400
 indicates an error.  The response body of an error is a JSON object with a
@@ -66,9 +68,10 @@ per account.
 
 A webhook is delivered by an HTTP POST with headers "X-Mox-Webhook-ID" (unique
 ID of webhook) and "X-Mox-Webhook-Attempt" (number of delivery attempts,
-starting at 1), and a JSON body with the webhook data.  Webhook delivery
-failures are retried at a schedule similar to message deliveries, until
-permanent failure.
+starting at 1), and a JSON body with the webhook data.  Failing webhook
+deliveries are retried with backoff, each time doubling the interval between
+attempts, at 1m, 2m, 4m, 7.5m, 15m and unwards, until the last attempt after a
+16h wait period.
 
 See [webhook.Outgoing] for the fields in a webhook for outgoing deliveries, and
 in particular [webhook.OutgoingEvent] for the types of events.

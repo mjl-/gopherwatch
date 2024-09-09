@@ -39,6 +39,8 @@ import (
 // All users, subscriptions, updates and sumdb state are in the database.
 var database *bstore.DB
 
+var dataDir string
+
 // The sumdb transparency log we keep moving forward, verifying the new entries and
 // matching new packages against subscriptions.
 var tlogclient *Client
@@ -369,6 +371,7 @@ func serve(args []string) {
 	fs.StringVar(&adminAddr, "adminaddr", "127.0.0.1:8075", "address to listen and serve the admin requests on")
 	fs.StringVar(&webhookAddr, "webhookaddr", "127.0.0.1:8076", "address to listen and serve the mox webhook requests on")
 	fs.StringVar(&dbpath, "dbpath", "gopherwatch.db", "database, with users, subscriptions, etc")
+	fs.StringVar(&dataDir, "datadir", "data", "directory with tile cache and where instance notes are read from")
 	fs.BoolVar(&testlog, "testlog", false, "use preset sumdb positions, forward the log only manually through api call; for testing")
 	fs.BoolVar(&resetTree, "resettree", false, "reset tree state, useful to prevent catching up for a long time after not running local/test instance for a while")
 	fs.Parse(args)

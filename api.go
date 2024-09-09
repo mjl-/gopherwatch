@@ -18,6 +18,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"time"
@@ -1145,10 +1146,10 @@ func (API) Home(ctx context.Context) (home Home) {
 
 	home.Recents = _recents(ctx, 15)
 
-	notebuf, _ := os.ReadFile("data/notes/home.txt")
+	notebuf, _ := os.ReadFile(filepath.Join(dataDir, "notes/home.txt"))
 	home.Note = string(notebuf)
 
-	signupnotebuf, _ := os.ReadFile("data/notes/signup.txt")
+	signupnotebuf, _ := os.ReadFile(filepath.Join(dataDir, "notes/signup.txt"))
 	home.SignupNote = string(signupnotebuf)
 
 	return

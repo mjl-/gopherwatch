@@ -82,14 +82,14 @@ func (o ops) ReadCache(file string) (rbuf []byte, rerr error) {
 		slog.Info("ReadCache done", "file", file, "bytes", len(rbuf), "err", rerr)
 	}()
 
-	p := filepath.Join("data/cache", file)
+	p := filepath.Join(dataDir, "cache", file)
 	return os.ReadFile(p)
 }
 
 func (o ops) WriteCache(file string, data []byte) {
 	slog.Info("WriteCache", "file", file, "bytes", len(data))
 
-	p := filepath.Join("data/cache", file)
+	p := filepath.Join(dataDir, "cache", file)
 	os.MkdirAll(filepath.Dir(p), 0700)
 	err := os.WriteFile(p, data, 0600)
 	if err != nil {
@@ -309,7 +309,7 @@ func latestModules(latest []byte) (TreeState, tlog.Tree, []module.Version, error
 			}
 			h := tlog.RecordHash([]byte(record))
 			if h != hashes[0] {
-				return ts, tlog.Tree{}, nil, fmt.Errorf("hash mismatch for record id %d, got %x, expect %x", id, h, hashes[0])
+				return ts, tlog.Tree{}, nil, fmt.Errorf("hash mismatch for record id %d, got %x, expect %x, content %q", id, h, hashes[0], record)
 			}
 			hashes = hashes[1:]
 

@@ -115,6 +115,14 @@ func (c *Client) initWork() {
 	}
 	c.verifiers = note.VerifierList(verifier)
 	c.name = verifier.Name()
+
+	if c.latest.N == 0 {
+		c.latest.Hash, err = tlog.TreeHash(0, nil)
+		if err != nil {
+			c.initErr = err
+			return
+		}
+	}
 }
 
 // SetTileHeight sets the tile height for the Client.

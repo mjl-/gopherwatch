@@ -12,7 +12,7 @@ require (
 	github.com/mjl-/sherpats v0.0.6
 	github.com/prometheus/client_golang v1.18.0
 	golang.org/x/crypto v0.22.0
-	golang.org/x/mod v0.17.0
+	golang.org/x/mod v0.21.0
 )
 
 require (

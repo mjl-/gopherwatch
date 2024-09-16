@@ -136,7 +136,7 @@ type Config struct {
 	Mox                      *Mox            `sconf:"optional" sconf-doc:"Configuration for sending/receiving email with mox webapi."`
 	SkipModulePrefixes       []string        `sconf:"optional" sconf-doc:"Modules matching this prefix (e.g. 'githubmirror.example.com/') are not notified about, and not shown on the home page."`
 	SkipModulePaths          []string        `sconf-doc:"Module paths that we won't notify about. E.g. the bare github.com, which would result in too many matches and notification emails."`
-	WebhooksAllowInteralIPs  bool            `sconf:"optional" sconf-doc:"Allow delivering webhooks to internal IPs."`
+	WebhooksAllowInternalIPs bool            `sconf:"optional" sconf-doc:"Allow delivering webhooks to internal IPs."`
 }
 
 type SubmissionIMAP struct {
@@ -278,9 +278,9 @@ func main() {
 				Submission: Submission{"localhost", 1465, true, true, "mox@localhost", "moxmoxmox", SubmissionFrom{"gopherwatch", "mox", "localhost", "", dns.Domain{}}},
 				IMAP:       IMAP{"localhost", 1993, true, true, "mox@localhost", "moxmoxmox"},
 			},
-			SkipModulePrefixes:      []string{"github.1git.de/", "github.hscsec.cn/", "github.phpd.cn/", "github.skymusic.top/"},
-			SkipModulePaths:         []string{"github.com"},
-			WebhooksAllowInteralIPs: true,
+			SkipModulePrefixes:       []string{"github.1git.de/", "github.hscsec.cn/", "github.phpd.cn/", "github.skymusic.top/"},
+			SkipModulePaths:          []string{"github.com"},
+			WebhooksAllowInternalIPs: true,
 		}
 		if len(args) == 1 && args[0] == "-mox" {
 			config.SubmissionIMAP = nil

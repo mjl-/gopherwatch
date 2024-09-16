@@ -46,7 +46,7 @@ func hookTransport() *http.Transport {
 			return nil, fmt.Errorf("looking up ips for host %q: %v", host, err)
 		}
 		for _, ip := range ips {
-			if !config.WebhooksAllowInteralIPs && (ip.IsLoopback() || ip.IsPrivate()) || ip.IsMulticast() || ip.IsUnspecified() {
+			if !config.WebhooksAllowInternalIPs && (ip.IsLoopback() || ip.IsPrivate()) || ip.IsMulticast() || ip.IsUnspecified() {
 				return nil, fmt.Errorf("host %q resolves to ip %s, not allowed", host, ip)
 			}
 		}

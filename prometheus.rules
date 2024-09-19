@@ -1,0 +1,55 @@
+# example prometheus alerting rules
+
+groups:
+- name: gopherwatch
+  rules:
+  - alert: gopherwatch-security-error
+    expr: rate(gopherwatch_tlog_security_errors[1h]) > 0
+    annotations:
+      summary: transparency log security error
+    labels:
+      page: always
+
+  - alert: gopherwatch-panic
+    expr: increase(gopherwatch_panics_total[1h]) > 0
+    annotations:
+      summary: unhandled panic
+    labels:
+      page: workhours
+
+  - alert: gropherwatch-tlog-records
+    expr: rate(gopherwatch_tlog_records[5m]) == 0
+    for: 4h
+    annotations:
+      summary: no new records in tlog for 4 hours
+    labels:
+      page: workhours
+
+  - alert: gropherwatch-tlog-processed
+    expr: rate(gopherwatch_tlog_processed[5m]) == 0
+    for: 4h
+    annotations:
+      summary: no records from tlog processed for 4 hours
+    labels:
+      page: workhours
+
+  - alert: gropherwatch-submission-errors
+    expr: rate(gopherwatch_message_submit_errors_total[5m]) > 0
+    annotations:
+      summary: errors while submitting email for delivery
+    labels:
+      page: workhours
+
+  - alert: gropherwatch-incoming-processing-errors
+    expr: rate(gopherwatch_incoming_process_errors_total[5m]) > 0
+    annotations:
+      summary: errors while processing received messages, like dsns
+    labels:
+      page: workhours
+
+  - alert: gropherwatch-webapi-result-errors
+    expr: rate(gopherwatch_webapi_results_total{method!="ok"}[5m]) > 0
+    annotations:
+      summary: errors making webapi calls
+    labels:
+      page: workhours

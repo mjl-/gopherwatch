@@ -188,6 +188,9 @@ func servePrep(dbpath string) {
 	if err != nil {
 		logFatalx("opening database", err)
 	}
+	if err = db.HintAppend(true, ModuleVersion{}); err != nil {
+		logFatalx("append-only hint: %v", err)
+	}
 	database = db
 
 	cops := ops{URL: config.SumDB.BaseURL}

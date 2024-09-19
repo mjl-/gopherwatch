@@ -458,11 +458,11 @@ func processModules(ts TreeState, ntree tlog.Tree, modversions []module.Version)
 						q.FilterNonzero(ModuleUpdate{UserID: sub.UserID, Module: mv.Path})
 						q.SortDesc("Discovered")
 						q.Limit(1)
-						modup, err := q.Get()
+						last, err := q.Get()
 						if err != nil && err != bstore.ErrAbsent {
 							return fmt.Errorf("looking up most recent notified version for update: %v", err)
 						}
-						if err == nil && semver.Compare(modup.Version, mv.Version) <= 0 {
+						if err == nil && semver.Compare(last.Version, mv.Version) > 0 {
 							continue
 						}
 					}

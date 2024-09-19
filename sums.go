@@ -107,29 +107,6 @@ func (o ops) SecurityError(msg string) {
 	slog.Error("tlog security error", "err", msg)
 }
 
-func initTlogTest() {
-	err := database.Write(context.Background(), func(tx *bstore.Tx) error {
-		ts := TreeState{ID: 1}
-		if err := tx.Get(&ts); !resetTree && err == nil && !ts.Test {
-			slog.Error("refusing to start in test mode on non-test tree state in database")
-			os.Exit(1)
-		}
-
-		tx.Delete(&TreeState{ID: 1}) // Ignore error.
-
-		ts = TreeState{ID: 1, RecordsInitial: testLatestRecords0, RecordsProcessed: testLatestRecords0}
-		if err := tx.Insert(&ts); err != nil {
-			return fmt.Errorf("insert initial treestate: %v", err)
-		}
-
-		return nil
-	})
-	if err != nil {
-		logFatalx("init tlog for test", err)
-	}
-	slog.Info("initialized tlog for testing")
-}
-
 func openTlog() {
 	ts := TreeState{ID: 1}
 	if err := database.Get(context.Background(), &ts); err != nil && err != bstore.ErrAbsent {
@@ -143,38 +120,11 @@ func openTlog() {
 			time.Sleep(delay)
 			delay *= 2
 
-			slog.Info("fetching transparency log position for initial state")
-			latestBuf, err := tlogclient.ops.ReadRemote("/latest")
-			if err != nil {
-				logErrorx("reading initial transparency log latest position", err)
-				continue
+			var err error
+			ts, err = initTlog()
+			if err == nil {
+				break
 			}
-
-			ntree, _, err := tlogclient.forward(latestBuf)
-			if err != nil {
-				logErrorx("forwarding to initial latest position", err)
-				continue
-			}
-
-			// Start processing a bit before the end, so we immediately fetch some packages.
-			n := ntree.N - 1000
-			if n < 0 {
-				n = 0
-			}
-
-			ts = TreeState{ID: 1, RecordsInitial: n, RecordsProcessed: n}
-			err = database.Write(context.Background(), func(tx *bstore.Tx) error {
-				if resetTree {
-					// Not checking error. We'll get it on insert.
-					tx.Delete(&TreeState{ID: 1})
-				}
-				return tx.Insert(&ts)
-			})
-			if err != nil {
-				logFatalx("storing initial transparency log position", err)
-			}
-			slog.Info("initialized transparency log", "position", ntree.N)
-			break
 		}
 	} else if ts.Test {
 		logFatalx("refusing to start in non-test mode on test tree state in database", nil)
@@ -188,12 +138,46 @@ func openTlog() {
 	watchTlog()
 }
 
+func initTlog() (TreeState, error) {
+	slog.Info("fetching transparency log position for initial state")
+	latestBuf, err := tlogclient.ops.ReadRemote("/latest")
+	if err != nil {
+		return TreeState{}, fmt.Errorf("reading initial transparency log latest position: %v", err)
+	}
+
+	ntree, _, err := tlogclient.forward(latestBuf)
+	if err != nil {
+		return TreeState{}, fmt.Errorf("forwarding to initial latest position: %v", err)
+	}
+
+	// Start processing a bit before the end, so we immediately fetch some packages.
+	n := ntree.N - 1000
+	if n < 0 {
+		n = 0
+	}
+
+	ts := TreeState{ID: 1, RecordsInitial: n, RecordsProcessed: n}
+	err = database.Write(context.Background(), func(tx *bstore.Tx) error {
+		if resetTree {
+			// Not checking error. We'll get it on insert.
+			tx.Delete(&TreeState{ID: 1})
+		}
+		return tx.Insert(&ts)
+	})
+	if err != nil {
+		return TreeState{}, fmt.Errorf("storing initial transparency log position: %v", err)
+	}
+	slog.Info("initialized transparency log", "position", ntree.N)
+	return ts, nil
+}
+
 func watchTlog() {
 	for {
 		err := stepTlog()
 		if err != nil {
 			logErrorx("moving tlog forward", err)
 		}
+		notify()
 		time.Sleep(config.SumDB.QueryLatestInterval)
 	}
 }
@@ -243,8 +227,6 @@ func forwardProcessLatest(latestBuf []byte) error {
 	if err := processModules(ts, ntree, modVersions); err != nil {
 		return fmt.Errorf("processing new modules/versions: %v", err)
 	}
-
-	notify()
 
 	return nil
 }

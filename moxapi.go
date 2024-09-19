@@ -41,14 +41,8 @@ func (lc loggingWebAPIClient) Send(ctx context.Context, req webapi.SendRequest) 
 // response has already been written.
 func parseWebhook(w http.ResponseWriter, r *http.Request, v any) (ok bool) {
 	if username, password, xok := r.BasicAuth(); !xok || username != config.Mox.Webhook.Username || password != config.Mox.Webhook.Password {
-		slog.Debug("webhook, missing or bad credentials")
 		w.Header().Set("WWW-Authenticate", `Basic realm="gopherwatch webhook"`)
-		http.Error(w, "401 - unauthorized", http.StatusUnauthorized)
-		return
-	}
-	if r.Method != "POST" {
-		slog.Debug("webhook, not a post")
-		http.Error(w, "405 - method not allowed - use post", http.StatusMethodNotAllowed)
+		httpErrorf(w, r, http.StatusUnauthorized, "missing or bad credentials")
 		return
 	}
 	ct, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
@@ -56,13 +50,11 @@ func parseWebhook(w http.ResponseWriter, r *http.Request, v any) (ok bool) {
 		err = fmt.Errorf("got %v, expected application/json", ct)
 	}
 	if err != nil {
-		slog.Debug("webhook, bad content type", "err", err)
-		http.Error(w, "400 - bad request - parsing content-type: "+err.Error(), http.StatusBadRequest)
+		httpErrorf(w, r, http.StatusBadRequest, "parsing content-type: %v", err)
 		return
 	}
 	if err := json.NewDecoder(r.Body).Decode(v); err != nil {
-		slog.Debug("webhook, parsing json body", "err", err)
-		http.Error(w, "400 - bad request - invalid payload, parsing: "+err.Error(), http.StatusBadRequest)
+		httpErrorf(w, r, http.StatusBadRequest, "invalid payload, parsing: %v", err)
 		return
 	}
 	return true
@@ -158,8 +150,7 @@ func webhookOutgoing(w http.ResponseWriter, r *http.Request) {
 		return nil
 	})
 	if err != nil {
-		slog.Error("processing webhook for outgoing message", "err", err)
-		http.Error(w, "500 - internal server error - "+err.Error(), http.StatusInternalServerError)
+		httpErrorf(w, r, http.StatusInternalServerError, "processing webhook for outgoing message: %v", err)
 		return
 	}
 	fmt.Fprintln(w, "ok")

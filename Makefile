@@ -10,19 +10,24 @@ build0:
 race: build0
 	go build -race
 
-testmode: build
-	./gopherwatch serve -testlog
+test:
+	CGO_ENABLED=0 go test -shuffle=on -coverprofile cover.out
+	go tool cover -html=cover.out -o cover.html
 
-livemode: build
+test-race:
+	CGO_ENABLED=1 go test -shuffle=on -race -coverprofile cover.out
+	go tool cover -html=cover.out -o cover.html
+
+run: build
 	./gopherwatch serve
 
-livemode-mox: build
+run-mox: build
 	./gopherwatch serve -config gopherwatch-mox.conf
 
-livemode-resettree: build
+run-resettree: build
 	./gopherwatch serve -resettree
 
-livemode-resettree-mox: build
+run-resettree-mox: build
 	./gopherwatch serve -resettree -config gopherwatch-mox.conf
 
 mox:
@@ -33,13 +38,13 @@ genconf: build
 
 check:
 	GOARCH=386 CGO_ENABLED=0 go vet
-	staticcheck
+	CGO_ENABLED=0 staticcheck
 
 check-shadow:
 	go vet -vettool=$$(which shadow) ./... 2>&1 | grep -v '"err"'
 
 index.js: api.ts lib.ts index.ts
-	./tsc.sh $@ $^
+	./tsc.sh index.js api.ts lib.ts index.ts
 
 jswatch:
 	bash -c 'while true; do inotifywait -q -e close_write *.ts; make index.js; done'

@@ -359,13 +359,7 @@
 		},
 		{
 			"Name": "Forward",
-			"Docs": "Forward tries a bit harder to forward the transparency log. While we\nperiodically fetch the /latest database tree state and forward the log, at\nleast sum.golang.org only returns new values about once every 10 minutes.\nBut we can look at the latest additions to index.golang.org and get the most\nrecently added module from it, then look it up to gets the associated tree\nstate and forward based on that.",
-			"Params": [],
-			"Returns": []
-		},
-		{
-			"Name": "TestForward",
-			"Docs": "",
+			"Docs": "Forward tries a bit harder to forward the transparency log. While we\nperiodically fetch the /latest database tree state and forward the log, at\nleast sum.golang.org only returns new values about once every 10 minutes.\nBut we can look at the latest additions to index.golang.org and get the most\nrecently added module from it, then look it up to get the associated tree\nstate and forward based on that.",
 			"Params": [],
 			"Returns": []
 		},

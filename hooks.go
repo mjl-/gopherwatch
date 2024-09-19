@@ -61,19 +61,22 @@ const concurrentHooksMax = 10
 
 // todo: group notifications for multiple versions of a single package in a single webhook call?
 
-func deliverHooks() {
+func deliverHooksInit() {
 	// Up to N concurrent webhook calls.
 	hooktokens = make(chan struct{}, concurrentHooksMax)
 	for i := 0; i < concurrentHooksMax; i++ {
 		hooktokens <- struct{}{}
 	}
+}
+
+func deliverHooks() {
+	deliverHooksInit()
 
 	// Wait a bit before making calls. If our process gets restarted in a loop, we
 	// don't want to hammer anyone too hard.
 	time.Sleep(3 * time.Second)
 
 	timer := time.NewTimer(0)
-Schedule:
 	for {
 		// Fetch time of first next hook to process.
 		qn := bstore.QueryDB[Hook](context.Background(), database)
@@ -86,7 +89,7 @@ Schedule:
 			// No hook to handle, wait for something to happen.
 			slog.Debug("no hook to schedule, waiting for activity")
 			<-hookactivity
-			continue Schedule
+			continue
 		}
 		if err != nil {
 			logFatalx("looking up next hook to deliver", err)
@@ -99,34 +102,38 @@ Schedule:
 		select {
 		case <-hookactivity:
 			// Schedule again.
-			continue Schedule
+			continue
 		case <-timer.C:
 			// Time to go!
 		}
 
 		// Retrieve all hooks we might be able to start.
-		qw := bstore.QueryDB[Hook](context.Background(), database)
-		qw.FilterEqual("Done", false)
-		qw.FilterLessEqual("NextAttempt", time.Now())
-		qw.SortAsc("NextAttempt")
-		qw.Limit(concurrentHooksMax)
-		hooks, err := qw.List()
-		if err != nil {
-			logFatalx("looking up next hooks to deliver", err)
-		}
-		if len(hooks) == 0 {
-			// Single scheduled hook could have been deleted in the mean time.
-			continue Schedule
-		}
-		slog.Debug("found hooks to deliver", "nhooks", len(hooks))
-		for _, h := range hooks {
-			// Wait for token.
-			<-hooktokens
+		deliverHooksOnce()
+	}
+}
 
-			// Try to get delivered.
-			if err := prepareDeliverHook(h); err != nil {
-				slog.Error("delivering hook", "err", err, "hook", h.ID)
-			}
+func deliverHooksOnce() {
+	qw := bstore.QueryDB[Hook](context.Background(), database)
+	qw.FilterEqual("Done", false)
+	qw.FilterLessEqual("NextAttempt", time.Now())
+	qw.SortAsc("NextAttempt")
+	qw.Limit(concurrentHooksMax)
+	hooks, err := qw.List()
+	if err != nil {
+		logFatalx("looking up next hooks to deliver", err)
+	}
+	if len(hooks) == 0 {
+		// Single scheduled hook could have been deleted in the mean time.
+		return
+	}
+	slog.Debug("found hooks to deliver", "nhooks", len(hooks))
+	for _, h := range hooks {
+		// Wait for token.
+		<-hooktokens
+
+		// Try to get delivered.
+		if err := prepareDeliverHook(h); err != nil {
+			slog.Error("delivering hook", "err", err, "hook", h.ID)
 		}
 	}
 }

@@ -1,6 +1,8 @@
 /gopherwatch
-/gopherwatch.db
+/gopherwatch*.db
 /gopherwatch*.conf
 /data/
 /node_modules/
 /local/
+/cover.out
+/cover.html

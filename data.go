@@ -22,11 +22,14 @@ type User struct {
 
 	// Cannot be changed, users must create a new account instead. todo: improve
 	Email string `bstore:"nonzero,unique"`
+
 	// Like email, but with a simplified localpart to prevent duplicate account signup
 	// attempts through the website.
-	SimplifiedEmail      string `bstore:"index"`
+	SimplifiedEmail string `bstore:"index"`
+
 	SaltedHashedPassword string `json:"-"`
-	PasswordResetToken   string `bstore:"index" json:"-"`
+
+	PasswordResetToken string `bstore:"index" json:"-"`
 
 	// If empty, user has been verified. Otherwise, we won't send notifications yet.
 	VerifyToken string `bstore:"index" json:"-"`

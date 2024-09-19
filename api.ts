@@ -402,18 +402,10 @@ export class Client {
 	// periodically fetch the /latest database tree state and forward the log, at
 	// least sum.golang.org only returns new values about once every 10 minutes.
 	// But we can look at the latest additions to index.golang.org and get the most
-	// recently added module from it, then look it up to gets the associated tree
+	// recently added module from it, then look it up to get the associated tree
 	// state and forward based on that.
 	async Forward(): Promise<void> {
 		const fn: string = "Forward"
-		const paramTypes: string[][] = []
-		const returnTypes: string[][] = []
-		const params: any[] = []
-		return await _sherpaCall(this.baseURL, this.authState, { ...this.options }, paramTypes, returnTypes, fn, params) as void
-	}
-
-	async TestForward(): Promise<void> {
-		const fn: string = "TestForward"
 		const paramTypes: string[][] = []
 		const returnTypes: string[][] = []
 		const params: any[] = []

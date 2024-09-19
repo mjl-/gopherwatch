@@ -1165,7 +1165,7 @@ func (API) Recents(ctx context.Context) (recents []Recent) {
 // periodically fetch the /latest database tree state and forward the log, at
 // least sum.golang.org only returns new values about once every 10 minutes.
 // But we can look at the latest additions to index.golang.org and get the most
-// recently added module from it, then look it up to gets the associated tree
+// recently added module from it, then look it up to get the associated tree
 // state and forward based on that.
 func (API) Forward(ctx context.Context) {
 	reqInfo := ctx.Value(requestInfoCtxKey).(requestInfo)
@@ -1192,7 +1192,8 @@ func (API) Forward(ctx context.Context) {
 	xcheckf(err, "scan response")
 
 	if last == "" {
-		xusererrorf("no new modules in last 5 minutes")
+		slog.Debug("no new modules in last 5 minutes")
+		return
 	}
 
 	var mod struct {
@@ -1230,21 +1231,7 @@ func (API) Forward(ctx context.Context) {
 
 	err = forwardProcessLatest(noteBuf)
 	xcheckf(err, "forwarding transparency log to latest position and processing modules")
-}
-
-func (API) TestForward(ctx context.Context) {
-	if !testlog {
-		xusererrorf("not in testing mode")
-	}
-
-	if testLatestIndex >= len(testLatests) {
-		xusererrorf("no more test latests")
-	}
-	latest := testLatests[testLatestIndex]
-	testLatestIndex++
-
-	err := forwardProcessLatest([]byte(latest))
-	xcheckf(err, "forward to latest and processing modules")
+	notify()
 }
 
 func (API) TestSend(ctx context.Context, secret, kind, email string) {
@@ -1252,6 +1239,11 @@ func (API) TestSend(ctx context.Context, secret, kind, email string) {
 		xusererrorf("bad secret")
 	}
 	email = xcanonicalAddress(email)
+	switch kind {
+	case "signup", "passwordreset", "moduleupdate":
+	default:
+		xusererrorf("unknown kind %q", kind)
+	}
 
 	u := User{
 		ID:                      1,

@@ -276,7 +276,7 @@ func signup(ctx context.Context, email smtp.Address, viaWebsite bool) (user User
 			if metaUnsubToken == "" {
 				metaUnsubToken = xrandomID(16)
 			}
-			updatesUnsubToken := user.MetaUnsubscribeToken
+			updatesUnsubToken := user.UpdatesUnsubscribeToken
 			if updatesUnsubToken == "" {
 				updatesUnsubToken = xrandomID(16)
 			}

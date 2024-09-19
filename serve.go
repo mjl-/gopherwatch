@@ -19,7 +19,7 @@ import (
 	texttemplate "text/template"
 	"time"
 
-	_ "embed"
+	"embed"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
@@ -88,6 +88,9 @@ var mailModuleUpdatesText string
 
 //go:embed mail.moduleupdates.html
 var mailModuleUpdatesHTML string
+
+//go:embed favicon.ico
+var files embed.FS
 
 var (
 	templateHTML = htmltemplate.Must(htmltemplate.New("mail.template.html").Parse(mailTemplateHTML))
@@ -194,6 +197,7 @@ func servePrep(dbpath string) {
 	}
 
 	publicMux.HandleFunc("GET /{$}", serveIndexHTML)
+	publicMux.Handle("GET /favicon.ico", http.FileServerFS(files))
 	publicMux.HandleFunc("GET /webhooks", serveWebhooksHTML)
 	publicMux.HandleFunc("GET /forward", serveForward)
 

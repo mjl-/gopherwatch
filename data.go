@@ -233,7 +233,7 @@ type Message struct {
 // configurable number of most recent module versions around.
 type ModuleVersion struct {
 	ID          int64
-	Module      string `bstore:"nonzero"`
+	Module      string `bstore:"nonzero,unique Module+Version"`
 	Version     string `bstore:"nonzero"`
 	Pseudo      bool
 	Prerelease  bool

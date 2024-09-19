@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -159,6 +160,10 @@ func initTlog() (TreeState, error) {
 	ts := TreeState{ID: 1, RecordsInitial: n, RecordsProcessed: n}
 	err = database.Write(context.Background(), func(tx *bstore.Tx) error {
 		if resetTree {
+			if _, err := bstore.QueryTx[ModuleVersion](tx).FilterGreaterEqual("LogRecordID", n).Delete(); err != nil {
+				return fmt.Errorf("removing previously seen module versions during tree reset: %v", err)
+			}
+
 			// Not checking error. We'll get it on insert.
 			tx.Delete(&TreeState{ID: 1})
 		}
@@ -392,6 +397,10 @@ func processModules(ts TreeState, ntree tlog.Tree, modversions []module.Version)
 				LogRecordID: startID + int64(i),
 			}
 			if err := tx.Insert(&modvers); err != nil {
+				if errors.Is(err, bstore.ErrUnique) {
+					metricTlogSecurityErrors.Inc()
+					slog.Error("duplicate module path/version in sumdb, security violation", "err", err, "modvers", modvers)
+				}
 				return fmt.Errorf("inserting module version: %v", err)
 			}
 		}

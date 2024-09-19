@@ -7,6 +7,12 @@
 			"Docs": "Signup registers a new account. We send an email for users to verify they\ncontrol the email address. If we already have a verified account, we send a\npassword reset instead.",
 			"Params": [
 				{
+					"Name": "prepToken",
+					"Typewords": [
+						"string"
+					]
+				},
+				{
 					"Name": "email",
 					"Typewords": [
 						"string"

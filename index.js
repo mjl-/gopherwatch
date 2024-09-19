@@ -69,11 +69,11 @@ var api;
 		// Signup registers a new account. We send an email for users to verify they
 		// control the email address. If we already have a verified account, we send a
 		// password reset instead.
-		async Signup(email) {
+		async Signup(prepToken, email) {
 			const fn = "Signup";
-			const paramTypes = [["string"]];
+			const paramTypes = [["string"], ["string"]];
 			const returnTypes = [];
-			const params = [email];
+			const params = [prepToken, email];
 			return await _sherpaCall(this.baseURL, this.authState, { ...this.options }, paramTypes, returnTypes, fn, params);
 		}
 		// SignupEmail returns the email address for a verify token. So we can show it, and
@@ -1291,7 +1291,8 @@ const signup = (home) => {
 			e.stopPropagation();
 			e.preventDefault();
 			await check(fieldset, async () => {
-				await client.Signup(email.value.trim());
+				const prepToken = await client.Prep();
+				await client.Signup(prepToken, email.value.trim());
 				signedup(email.value.trim());
 			});
 		}, fieldset = dom.fieldset(dom.label(style({ display: 'inline' }), 'Email address', ' ', email = dom.input(attr.type('email'), attr.required(''))), ' ', dom.submitbutton('Create account')), dom.p("We'll send you an email with a confirmation link."))),

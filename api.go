@@ -181,10 +181,11 @@ func xcanonicalAddress(email string) string {
 // Signup registers a new account. We send an email for users to verify they
 // control the email address. If we already have a verified account, we send a
 // password reset instead.
-func (API) Signup(ctx context.Context, email string) {
+func (API) Signup(ctx context.Context, prepToken string, email string) {
 	reqInfo := ctx.Value(requestInfoCtxKey).(requestInfo)
 
 	xrate(ratelimitSignup, reqInfo.Request)
+	xcheckprep(reqInfo, prepToken)
 
 	email = xcanonicalAddress(email)
 	emailAddr, err := smtp.ParseAddress(email)

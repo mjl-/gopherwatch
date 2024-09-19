@@ -216,11 +216,11 @@ export class Client {
 	// Signup registers a new account. We send an email for users to verify they
 	// control the email address. If we already have a verified account, we send a
 	// password reset instead.
-	async Signup(email: string): Promise<void> {
+	async Signup(prepToken: string, email: string): Promise<void> {
 		const fn: string = "Signup"
-		const paramTypes: string[][] = [["string"]]
+		const paramTypes: string[][] = [["string"],["string"]]
 		const returnTypes: string[][] = []
-		const params: any[] = [email]
+		const params: any[] = [prepToken, email]
 		return await _sherpaCall(this.baseURL, this.authState, { ...this.options }, paramTypes, returnTypes, fn, params) as void
 	}
 

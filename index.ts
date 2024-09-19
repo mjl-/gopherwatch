@@ -864,7 +864,8 @@ const signup = (home: api.Home) => {
 								e.preventDefault()
 
 								await check(fieldset, async () => {
-									await client.Signup(email!.value.trim())
+									const prepToken = await client.Prep()
+									await client.Signup(prepToken, email!.value.trim())
 									signedup(email!.value.trim())
 								})
 							},

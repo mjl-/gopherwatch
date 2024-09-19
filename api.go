@@ -1265,7 +1265,7 @@ func (API) TestSend(ctx context.Context, secret, kind, email string) {
 	subject, text, html, err := composeSample(kind, u, loginToken)
 	xcheckf(err, "compose text")
 
-	sendID, err := send(ctx, kind != "moduleupdates", u, "", config.SubjectPrefix+subject, text, html)
+	sendID, err := send(ctx, kind != "moduleupdates", u, "", subject, text, html)
 	xcheckf(err, "send test message")
 	slog.Info("composed test message", "sendid", sendID)
 }

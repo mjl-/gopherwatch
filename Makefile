@@ -1,4 +1,4 @@
-build: build0
+build: build0 index.js
 	CGO_ENABLED=0 go build
 
 build0:
@@ -43,17 +43,21 @@ check:
 check-shadow:
 	go vet -vettool=$$(which shadow) ./... 2>&1 | grep -v '"err"'
 
-index.js: api.ts lib.ts index.ts
+index.js: api.ts lib.ts index.ts node_modules/.bin/tsc
 	./tsc.sh index.js api.ts lib.ts index.ts
 
-jswatch:
+tswatch:
 	bash -c 'while true; do inotifywait -q -e close_write *.ts; make index.js; done'
 
-jsinstall:
+node_modules/.bin/tsc:
 	-mkdir -p node_modules/.bin
 	npm ci --ignore-scripts
 
-jsinstall0:
+installjs:
+	-mkdir -p node_modules/.bin
+	npm ci --ignore-scripts
+
+installjs0:
 	-mkdir -p node_modules/.bin
 	npm install --ignore-scripts --save-dev --save-exact typescript@5.1.6
 

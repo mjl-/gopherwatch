@@ -184,7 +184,8 @@ func servePrep(dbpath string) {
 		logFatalx("get hostname", err)
 	}
 
-	db, err := bstore.Open(context.Background(), dbpath, nil, dbtypes...)
+	opts := bstore.Options{RegisterLogger: logger}
+	db, err := bstore.Open(context.Background(), dbpath, &opts, dbtypes...)
 	if err != nil {
 		logFatalx("opening database", err)
 	}

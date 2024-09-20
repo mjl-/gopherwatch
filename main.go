@@ -3,6 +3,7 @@
 package main
 
 import (
+	"context"
 	cryptorand "crypto/rand"
 	"encoding/base64"
 	"flag"
@@ -13,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/mjl-/bstore"
 	"github.com/mjl-/mox/dns"
 	"github.com/mjl-/mox/smtp"
 	"github.com/mjl-/sconf"
@@ -112,9 +114,10 @@ func random() string {
 }
 
 var loglevel slog.LevelVar
+var logger *slog.Logger
 
 func init() {
-	slog.SetDefault(slog.New(
+	logger = slog.New(
 		slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
 			ReplaceAttr: func(groups []string, a slog.Attr) slog.Attr {
 				if len(groups) == 0 {
@@ -130,7 +133,8 @@ func init() {
 			},
 			Level: &loglevel,
 		}),
-	))
+	)
+	slog.SetDefault(logger)
 }
 
 func main() {
@@ -140,6 +144,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, "       gopherwatch describeconf >gopherwatch.conf")
 		fmt.Fprintln(os.Stderr, "       gopherwatch checkconf gopherwatch.conf")
 		fmt.Fprintln(os.Stderr, "       gopherwatch genconf [-mox] >gopherwatch.conf")
+		fmt.Fprintln(os.Stderr, "       gopherwatch opendb file.db")
 		flag.PrintDefaults()
 		os.Exit(2)
 	}
@@ -203,6 +208,20 @@ func main() {
 			logFatalx("describing config", err)
 		}
 		fmt.Fprintln(os.Stderr, `wrote config that works with "mox localserve" as mail server, see https://github.com/mjl-/mox`)
+
+	case "opendb":
+		// Open the database to perform upgrades, and close it again.
+		if len(args) != 1 {
+			flag.Usage()
+		}
+		opts := bstore.Options{RegisterLogger: logger}
+		db, err := bstore.Open(context.Background(), args[0], &opts, dbtypes...)
+		if err != nil {
+			logFatalx("open database: %v", err)
+		}
+		if err := db.Close(); err != nil {
+			logFatalx("close database: %v", err)
+		}
 
 	default:
 		fmt.Fprintln(os.Stderr, "unknown subcommand")

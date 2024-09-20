@@ -180,7 +180,15 @@ func composeModuleUpdates(u User, loginToken string, updates []ModuleUpdate) (su
 		return l[i].Module < l[j].Module
 	})
 
-	subject = fmt.Sprintf("%s%d modules with %d new versions", config.SubjectPrefix, len(l), len(updates))
+	smod := "s"
+	if len(l) == 1 {
+		smod = ""
+	}
+	sup := "s"
+	if len(updates) == 1 {
+		sup = ""
+	}
+	subject = fmt.Sprintf("%s%d module%s with %d new version%s", config.SubjectPrefix, len(l), smod, len(updates), sup)
 
 	var truncated bool
 	if len(l) > 1100 {

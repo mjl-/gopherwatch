@@ -463,7 +463,7 @@ require (
 	checkMatch(xsub, "other.localhost/fail", "v0.1.0", true)
 	outgoingEvent = webhook.EventFailed
 	notify()
-	tneedmail(t, "1 modules with 1 new versions")
+	tneedmail(t, "1 module with 1 new version")
 
 	user, err = bstore.QueryDB[User](xctx, database).Get()
 	tcheckf(t, err, "get user for backoff")

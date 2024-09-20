@@ -918,7 +918,6 @@ const popup = (...kids) => {
 };
 let loginOpen = false;
 const login = async (reason) => {
-	console.log('login needed', reason);
 	return new Promise((resolve, _) => {
 		const origFocus = document.activeElement;
 		let reasonElem;
@@ -946,6 +945,7 @@ const login = async (reason) => {
 			requestPasswordReset();
 		})))))));
 		document.body.appendChild(root);
+		document.body.classList.toggle('loading', false);
 		username.focus();
 		loginOpen = true;
 	});

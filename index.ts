@@ -63,7 +63,6 @@ const popup = (...kids: ElemArg[]) => {
 
 let loginOpen = false
 const login = async (reason: string) => {
-	console.log('login needed', reason)
 	return new Promise<string>((resolve: (v: string) => void, _) => {
 		const origFocus = document.activeElement
 		let reasonElem: HTMLElement
@@ -133,6 +132,7 @@ const login = async (reason: string) => {
 			)
 		)
 		document.body.appendChild(root)
+		document.body.classList.toggle('loading', false)
 		username.focus()
 		loginOpen = true
 	})

@@ -7,6 +7,7 @@ const zindexes = {
 
 const check = async <T>(elem: { disabled: boolean }, fn: () => Promise<T>): Promise<T> => {
 	elem.disabled = true
+        document.body.classList.toggle('loading', true)
 	try {
 		return await fn()
 	} catch (err) {
@@ -14,6 +15,7 @@ const check = async <T>(elem: { disabled: boolean }, fn: () => Promise<T>): Prom
 		window.alert('Error: ' + errmsg(err))
 		throw err
 	} finally {
+		document.body.classList.toggle('loading', false)
 		elem.disabled = false
 	}
 }
@@ -263,24 +265,33 @@ const subscriptionPopup = (sub: api.Subscription, subscriptions: api.Subscriptio
 			},
 			fieldset=dom.fieldset(
 				modulegomod=dom.div(
+					sub.ID ? [] : dom.div(
+						style({textAlign: 'right'}),
+						dom.a(attr.href('#'), style({fontSize: '.9em'}), 'Subscribe to dependencies of a go.mod file', function click(e: MouseEvent) {
+							e.preventDefault()
+							dom._kids(modulegomod,
+								dom.label(
+									'Contents of go.mod',
+									gomod=dom.textarea(attr.required(''), attr.rows('12')),
+								),
+								dom.div(dom._class('explain'), 'Paste the contents of your go.mod. Subscriptions will be created for all direct dependencies.'),
+								dom.label(indirect=dom.input(attr.type('checkbox')), ' Also subscribe to indirect dependencies'),
+								dom.br(),
+							)
+							dom._kids(submitbtn, 'Add subscriptions for dependencies')
+						}),
+					),
 					dom.label(
 						style({display: 'flex', justifyContent: 'space-between'}),
 						dom.div('Module '),
-						sub.ID ? [] : [
-							dom.a(attr.href('#'), style({fontSize: '.9em'}), 'Subscribe to dependencies of a go.mod file', function click(e: MouseEvent) {
-								e.preventDefault()
-								dom._kids(modulegomod,
-									dom.label(
-										'Contents of go.mod',
-										gomod=dom.textarea(attr.required(''), attr.rows('12')),
-									),
-									dom.div(dom._class('explain'), 'Paste the contents of your go.mod. Subscriptions will be created for all direct dependencies.'),
-									dom.label(indirect=dom.input(attr.type('checkbox')), ' Also subscribe to indirect dependencies'),
-									dom.br(),
-								)
-								dom._kids(submitbtn, 'Add subscriptions for dependencies')
-							}),
-						],
+						dom.a(attr.href('#'), style({fontSize: '.9em'}), 'Presets for new Go toolchains', attr.title('Presets to get a notification when a new Go toolchain is released.'), function click(e: MouseEvent) {
+							e.preventDefault()
+							module.value = 'golang.org/toolchain'
+							belowModule.checked = false
+							olderVersions.checked = true
+							prerelease.checked = true
+							pseudo.checked = false
+						}),
 					),
 					dom.div(
 						module=dom.input(attr.required(''), attr.value(sub.Module), function change() {
@@ -307,7 +318,7 @@ const subscriptionPopup = (sub: api.Subscription, subscriptions: api.Subscriptio
 						},
 					),
 					' Pseudo versions, such as v0.0.0-20240222094833-a1bd684a916b'),
-					attr.title('Pseudo versions are always prereleases. In order to match a pseudoversion, prerelease must also be checked.'),
+					attr.title('Pseudo versions are also prereleases. In order to match a pseudoversion, prerelease must also be checked.'),
 				dom.br(),
 				dom.label(
 					'Comment',
@@ -1155,9 +1166,12 @@ const route0 = async () => {
 
 const route = async () => {
 	try {
+		document.body.classList.toggle('loading', true)
 		await route0()
 	} catch (err) {
 		window.alert('Error loading page: ' + errmsg(err))
+	} finally {
+		document.body.classList.toggle('loading', false)
 	}
 }
 

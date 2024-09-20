@@ -872,6 +872,7 @@ const zindexes = {
 };
 const check = async (elem, fn) => {
 	elem.disabled = true;
+	document.body.classList.toggle('loading', true);
 	try {
 		return await fn();
 	}
@@ -881,6 +882,7 @@ const check = async (elem, fn) => {
 		throw err;
 	}
 	finally {
+		document.body.classList.toggle('loading', false);
 		elem.disabled = false;
 	}
 };
@@ -1041,13 +1043,18 @@ const subscriptionPopup = (sub, subscriptions, hookconfigs, render) => {
 			render();
 			close();
 		});
-	}, fieldset = dom.fieldset(modulegomod = dom.div(dom.label(style({ display: 'flex', justifyContent: 'space-between' }), dom.div('Module '), sub.ID ? [] : [
-		dom.a(attr.href('#'), style({ fontSize: '.9em' }), 'Subscribe to dependencies of a go.mod file', function click(e) {
-			e.preventDefault();
-			dom._kids(modulegomod, dom.label('Contents of go.mod', gomod = dom.textarea(attr.required(''), attr.rows('12'))), dom.div(dom._class('explain'), 'Paste the contents of your go.mod. Subscriptions will be created for all direct dependencies.'), dom.label(indirect = dom.input(attr.type('checkbox')), ' Also subscribe to indirect dependencies'), dom.br());
-			dom._kids(submitbtn, 'Add subscriptions for dependencies');
-		}),
-	]), dom.div(module = dom.input(attr.required(''), attr.value(sub.Module), function change() {
+	}, fieldset = dom.fieldset(modulegomod = dom.div(sub.ID ? [] : dom.div(style({ textAlign: 'right' }), dom.a(attr.href('#'), style({ fontSize: '.9em' }), 'Subscribe to dependencies of a go.mod file', function click(e) {
+		e.preventDefault();
+		dom._kids(modulegomod, dom.label('Contents of go.mod', gomod = dom.textarea(attr.required(''), attr.rows('12'))), dom.div(dom._class('explain'), 'Paste the contents of your go.mod. Subscriptions will be created for all direct dependencies.'), dom.label(indirect = dom.input(attr.type('checkbox')), ' Also subscribe to indirect dependencies'), dom.br());
+		dom._kids(submitbtn, 'Add subscriptions for dependencies');
+	})), dom.label(style({ display: 'flex', justifyContent: 'space-between' }), dom.div('Module '), dom.a(attr.href('#'), style({ fontSize: '.9em' }), 'Presets for new Go toolchains', attr.title('Presets to get a notification when a new Go toolchain is released.'), function click(e) {
+		e.preventDefault();
+		module.value = 'golang.org/toolchain';
+		belowModule.checked = false;
+		olderVersions.checked = true;
+		prerelease.checked = true;
+		pseudo.checked = false;
+	})), dom.div(module = dom.input(attr.required(''), attr.value(sub.Module), function change() {
 		// User may input a URL, better fix it for them instead of making the user fix it.
 		module.value = module.value.replace(/^https?:\/\//, '');
 		module.value = module.value.replace(/\/*$/, '');
@@ -1055,7 +1062,7 @@ const subscriptionPopup = (sub, subscriptions, hookconfigs, render) => {
 		if (pseudo.checked) {
 			prerelease.checked = true;
 		}
-	}), ' Pseudo versions, such as v0.0.0-20240222094833-a1bd684a916b'), attr.title('Pseudo versions are always prereleases. In order to match a pseudoversion, prerelease must also be checked.'), dom.br(), dom.label('Comment', 
+	}), ' Pseudo versions, such as v0.0.0-20240222094833-a1bd684a916b'), attr.title('Pseudo versions are also prereleases. In order to match a pseudoversion, prerelease must also be checked.'), dom.br(), dom.label('Comment', 
 	// explicit String to prevent special scriptswitch handling
 	comment = dom.textarea(new String(sub.Comment))), dom.br(), dom.label('Delivery method', dom.div(webhookconfig = dom.select(dom.option('Email', attr.value('0')), hookconfigs.map(hc => dom.option('Webhook ' + hc.Name, attr.value('' + hc.ID), sub.HookConfigID === hc.ID ? attr.selected('') : []))))), dom.br(), dom.div(submitbtn = dom.submitbutton(sub.ID ? 'Save subscription' : 'Add subscription')))));
 	module.focus();
@@ -1429,10 +1436,14 @@ const route0 = async () => {
 };
 const route = async () => {
 	try {
+		document.body.classList.toggle('loading', true);
 		await route0();
 	}
 	catch (err) {
 		window.alert('Error loading page: ' + errmsg(err));
+	}
+	finally {
+		document.body.classList.toggle('loading', false);
 	}
 };
 const init = () => {

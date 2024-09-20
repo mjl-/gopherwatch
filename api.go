@@ -977,6 +977,9 @@ func (API) SubscriptionCreate(ctx context.Context, sub Subscription) Subscriptio
 	reqInfo := ctx.Value(requestInfoCtxKey).(requestInfo)
 
 	xcheckModule(sub.Module)
+	if sub.Pseudo && !sub.Prerelease {
+		xusererrorf("subscription for pseudoversions without prerelease versions will never match")
+	}
 
 	sub.ID = 0
 	sub.UserID = reqInfo.UserID
@@ -1056,6 +1059,9 @@ func (API) SubscriptionSave(ctx context.Context, sub Subscription) {
 	reqInfo := ctx.Value(requestInfoCtxKey).(requestInfo)
 
 	xcheckModule(sub.Module)
+	if sub.Pseudo && !sub.Prerelease {
+		xusererrorf("subscription for pseudoversions without prerelease versions will never match")
+	}
 
 	err := database.Write(ctx, func(tx *bstore.Tx) error {
 		exists, err := bstore.QueryTx[Subscription](tx).FilterNonzero(Subscription{ID: sub.ID, UserID: reqInfo.UserID}).Exists()

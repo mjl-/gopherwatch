@@ -296,7 +296,18 @@ const subscriptionPopup = (sub: api.Subscription, subscriptions: api.Subscriptio
 				dom.label(belowModule=dom.input(attr.type('checkbox'), sub.BelowModule ? attr.checked('') : []), ' ', dom.span('Sub modules', attr.title('E.g. if subscribed to github.com/mjl-, whether to match github.com/mjl-/gopherwatch.'))),
 				dom.label(olderVersions=dom.input(attr.type('checkbox'), sub.OlderVersions ? attr.checked('') : []), ' ', dom.span('Older versions than already seen', attr.title('Can happen when an old version (tag) is requested through the Go module proxy after a later tag, not uncommon after forking a repository and pushing all historic tags.'))),
 				dom.label(prerelease=dom.input(attr.type('checkbox'), sub.Prerelease ? attr.checked('') : []), ' Prereleases such as v1.2.3-beta1'),
-				dom.label(pseudo=dom.input(attr.type('checkbox'), sub.Pseudo ? attr.checked('') : []), ' Pseudo versions, such as v0.0.0-20240222094833-a1bd684a916b'),
+				dom.label(
+					pseudo=dom.input(
+						attr.type('checkbox'),
+						sub.Pseudo ? attr.checked('') : [],
+						function change() {
+							if (pseudo.checked) {
+								prerelease.checked = true
+							}
+						},
+					),
+					' Pseudo versions, such as v0.0.0-20240222094833-a1bd684a916b'),
+					attr.title('Pseudo versions are always prereleases. In order to match a pseudoversion, prerelease must also be checked.'),
 				dom.br(),
 				dom.label(
 					'Comment',

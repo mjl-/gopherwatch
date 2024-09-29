@@ -35,7 +35,7 @@ github.com/mjl-/mox/stub
 github.com/mjl-/mox/tlsrpt
 github.com/mjl-/mox/webapi
 github.com/mjl-/mox/webhook
-# github.com/mjl-/sconf v0.0.7
+# github.com/mjl-/sconf v0.0.8
 ## explicit; go 1.12
 github.com/mjl-/sconf
 # github.com/mjl-/sherpa v0.6.7

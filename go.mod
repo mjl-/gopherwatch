@@ -5,7 +5,7 @@ go 1.23.0
 require (
 	github.com/mjl-/bstore v0.0.7
 	github.com/mjl-/mox v0.0.12-0.20240628083946-367e968199bb
-	github.com/mjl-/sconf v0.0.7
+	github.com/mjl-/sconf v0.0.8
 	github.com/mjl-/sherpa v0.6.7
 	github.com/mjl-/sherpadoc v0.0.16
 	github.com/mjl-/sherpaprom v0.0.2

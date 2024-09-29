@@ -3,7 +3,7 @@ module github.com/mjl-/gopherwatch
 go 1.23.0
 
 require (
-	github.com/mjl-/bstore v0.0.6
+	github.com/mjl-/bstore v0.0.7
 	github.com/mjl-/mox v0.0.12-0.20240628083946-367e968199bb
 	github.com/mjl-/sconf v0.0.7
 	github.com/mjl-/sherpa v0.6.7
@@ -24,7 +24,7 @@ require (
 	github.com/prometheus/client_model v0.5.0 // indirect
 	github.com/prometheus/common v0.45.0 // indirect
 	github.com/prometheus/procfs v0.12.0 // indirect
-	go.etcd.io/bbolt v1.3.10 // indirect
+	go.etcd.io/bbolt v1.3.11 // indirect
 	golang.org/x/net v0.24.0 // indirect
 	golang.org/x/sync v0.7.0 // indirect
 	golang.org/x/sys v0.19.0 // indirect

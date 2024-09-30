@@ -131,9 +131,9 @@ func serve(args []string) {
 	fs.StringVar(&metricsAddr, "metricsaddr", "127.0.0.1:8074", "address to listen and serve metrics on")
 	fs.StringVar(&adminAddr, "adminaddr", "127.0.0.1:8075", "address to listen and serve the admin requests on")
 	fs.StringVar(&webhookAddr, "webhookaddr", "127.0.0.1:8076", "address to listen and serve the mox webhook requests on")
-	fs.StringVar(&dnsudpaddr, "dnsudpaddr", "", "udp address to serve dns on, eg :53")
-	fs.StringVar(&dnstcpaddr, "dnstcpaddr", "", "tcp address to serve dns on, eg :53")
-	fs.StringVar(&dnstlsaddr, "dnstlsaddr", "", "tcp address to serve dns on with ephemeral tls key/cert, eg :853")
+	fs.StringVar(&dnsudpaddr, "dnsudpaddr", "", "comma-separated udp addresses to serve dns on, eg :53")
+	fs.StringVar(&dnstcpaddr, "dnstcpaddr", "", "comma-separated tcp addresses to serve dns on, eg :53")
+	fs.StringVar(&dnstlsaddr, "dnstlsaddr", "", "comma-separated tcp addresses to serve dns on with ephemeral tls key/cert, eg :853")
 	fs.StringVar(&dbpath, "dbpath", "gopherwatch.db", "database, with users, subscriptions, etc")
 	fs.StringVar(&dataDir, "datadir", "data", "directory with tile cache and where instance notes are read from")
 	fs.BoolVar(&resetTree, "resettree", false, "reset tree state, useful to prevent catching up for a long time after not running local/test instance for a while")
@@ -168,35 +168,39 @@ func serve(args []string) {
 	// todo: we may want a mode where we can be started as root, then bind to sockets, then execute unprivileged child process while passing the sockets. for now, os-specific mechanisms like cap_net_bind_service on linux can be used.
 	// todo: on dns, may want to put a limit (rate of connections, and current open connections) on tcp connections, and rate limit on udp requests
 	if dnsudpaddr != "" {
-		udpconn, err := net.ListenPacket("udp", dnsudpaddr)
-		xfatalf(err, "listen udp")
-		go func() {
-			for i := 0; i < 10; i++ {
-				go func() {
-					buf := make([]byte, 1500)
-					for {
-						n, remaddr, err := udpconn.ReadFrom(buf)
-						xfatalf(err, "read packet")
+		for _, addr := range strings.Split(dnsudpaddr, ",") {
+			udpconn, err := net.ListenPacket("udp", addr)
+			xfatalf(err, "listen udp %s", addr)
+			go func() {
+				for i := 0; i < 10; i++ {
+					go func() {
+						buf := make([]byte, 1500)
+						for {
+							n, remaddr, err := udpconn.ReadFrom(buf)
+							xfatalf(err, "read packet")
 
-						metricDNSTransport.WithLabelValues("udp").Inc()
-						serveUDP(udpconn, buf[:n], remaddr)
-					}
-				}()
-			}
-		}()
+							metricDNSTransport.WithLabelValues("udp").Inc()
+							serveUDP(udpconn, buf[:n], remaddr)
+						}
+					}()
+				}
+			}()
+		}
 	}
 
 	if dnstcpaddr != "" {
-		tcpconn, err := net.Listen("tcp", dnstcpaddr)
-		xfatalf(err, "listen tcp")
-		go func() {
-			for {
-				metricDNSTransport.WithLabelValues("tcp").Inc()
-				conn, err := tcpconn.Accept()
-				xfatalf(err, "accept")
-				go serveTCP(conn, true)
-			}
-		}()
+		for _, addr := range strings.Split(dnstcpaddr, ",") {
+			tcpconn, err := net.Listen("tcp", addr)
+			xfatalf(err, "listen tcp %s", addr)
+			go func() {
+				for {
+					metricDNSTransport.WithLabelValues("tcp").Inc()
+					conn, err := tcpconn.Accept()
+					xfatalf(err, "accept")
+					go serveTCP(conn, true)
+				}
+			}()
+		}
 	}
 
 	if dnstlsaddr != "" {
@@ -204,16 +208,18 @@ func serve(args []string) {
 			MinVersion:   tls.VersionTLS13,
 			Certificates: []tls.Certificate{xmakeCert()},
 		}
-		tlsconn, err := tls.Listen("tcp", dnstlsaddr, &tlsConfig)
-		xfatalf(err, "listen tls")
-		go func() {
-			for {
-				metricDNSTransport.WithLabelValues("tls").Inc()
-				conn, err := tlsconn.Accept()
-				xfatalf(err, "accept")
-				go serveTCP(conn, true)
-			}
-		}()
+		for _, addr := range strings.Split(dnstlsaddr, ",") {
+			tlsconn, err := tls.Listen("tcp", addr, &tlsConfig)
+			xfatalf(err, "listen tls %s", addr)
+			go func() {
+				for {
+					metricDNSTransport.WithLabelValues("tls").Inc()
+					conn, err := tlsconn.Accept()
+					xfatalf(err, "accept")
+					go serveTCP(conn, true)
+				}
+			}()
+		}
 	}
 
 	if metricsAddr != "" {

@@ -21,6 +21,7 @@ import (
 	"golang.org/x/mod/sumdb"
 	"golang.org/x/mod/sumdb/dirhash"
 
+	"github.com/mjl-/bstore"
 	"github.com/mjl-/mox/dns"
 	"github.com/mjl-/mox/smtp"
 	"github.com/mjl-/mox/webapi"
@@ -154,7 +155,11 @@ func tneedmail0(t *testing.T, subject string) moxtx {
 }
 
 var sumsrv *sumdb.TestServer
+var sumhttpsrv *httptest.Server
 var sumindex []indexMod
+
+const testskey = "PRIVATE+KEY+localhost+7af406a6+AR65vBDzmd0yI/rsoMwbg5sYgFWIF2Z3TgtWaGxWEu1+"
+const testvkey = "localhost+7af406a6+AfWA0P/5hn0K1/QybqsBg3fD+9XzPNB/v1QG73x/K8Gi"
 
 type indexMod struct {
 	Path      string
@@ -181,6 +186,34 @@ func gosumOK(path, version string) ([]byte, error) {
 }
 
 var gosum = gosumOK
+
+func tresetTree() {
+	if sumhttpsrv != nil {
+		sumhttpsrv.Close()
+	}
+
+	os.RemoveAll("testdata/tmp/data/cache")
+	sumindex = nil
+	sumsrv = sumdb.NewTestServer(testskey, func(path, version string) ([]byte, error) {
+		return gosum(path, version)
+	})
+	sumhttpsrv = httptest.NewServer(NewServer(sumsrv)) // todo: replace with sumdb.NewServer once fixed
+	config.SumDB.BaseURL = sumhttpsrv.URL
+
+	if _, err := bstore.QueryDB[ModuleVersion](ctxbg, database).Delete(); err != nil {
+		panic(fmt.Sprintf("delete module versions: %v", err))
+	}
+
+	cops := ops{URL: config.SumDB.BaseURL}
+	tlogclient = NewClient(config.SumDB.VerifierKey, &cops)
+
+	if err := tlogclient.init(); err != nil {
+		panic(fmt.Sprintf("tlogclient init: %v", err))
+	}
+	if _, err := initTlog(); err != nil {
+		panic(fmt.Sprintf("tlog init: %v", err))
+	}
+}
 
 func indexHandler(w http.ResponseWriter, r *http.Request) {
 	for _, m := range sumindex {
@@ -298,16 +331,9 @@ func TestMain(t *testing.M) {
 
 	ratelimitSumdb = makeLimiter(windowLimit(time.Second, 1000, 1000, 1000))
 
-	const skey = "PRIVATE+KEY+localhost+7af406a6+AR65vBDzmd0yI/rsoMwbg5sYgFWIF2Z3TgtWaGxWEu1+"
-	const vkey = "localhost+7af406a6+AfWA0P/5hn0K1/QybqsBg3fD+9XzPNB/v1QG73x/K8Gi"
-	sumsrv = sumdb.NewTestServer(skey, func(path, version string) ([]byte, error) {
-		return gosum(path, version)
-	})
-
 	fakemox := httptest.NewServer(http.HandlerFunc(moxapiHandler))
 	moxhookout = httptest.NewServer(http.HandlerFunc(webhookOutgoing))
 	moxhookin = httptest.NewServer(http.HandlerFunc(webhookIncoming))
-	sumhttpsrv := httptest.NewServer(NewServer(sumsrv)) // todo: replace with sumdb.NewServer once fixed
 	fakeindex := httptest.NewServer(http.HandlerFunc(indexHandler))
 
 	config = Config{
@@ -323,8 +349,8 @@ func TestMain(t *testing.M) {
 		DailyMetaMessagesMax: 100,
 		EmailUpdateInterval:  0,
 		SumDB: SumDB{
-			BaseURL:             sumhttpsrv.URL,
-			VerifierKey:         vkey,
+			// BaseURL is set below with a call to tresetTree.
+			VerifierKey:         testvkey,
 			QueryLatestInterval: time.Hour, // We manually forward the tlog during tests.
 		},
 		IndexBaseURL:  fakeindex.URL,
@@ -346,16 +372,25 @@ func TestMain(t *testing.M) {
 		WebhooksAllowInternalIPs: true,
 		SkipModulePrefixes:       []string{"mirror.localhost/"},
 		SkipModulePaths:          []string{"huge.localhost"},
+		DNS: &DNS{
+			Domain: "gw.example.",
+			NS: []NS{
+				{Name: "ns0", IPs: []string{"127.0.0.1", "::1"}},
+			},
+			SOAMailbox:  "mjl.gw.example.",
+			TTL:         60,
+			NegativeTTL: 60,
+			MetaTTL:     300,
+		},
 	}
+	config.DNS.ECDSA.PrivateKey, config.DNS.ECDSA.PublicKey = xecdsaGen()
+	err := parseDNSConfig(config.DNS)
+	xfatalf(err, "parse dns config")
 
 	servePrep(dbpath)
 
-	if err := tlogclient.init(); err != nil {
-		log.Fatalf("tlogclient init: %v", err)
-	}
-	if _, err := initTlog(); err != nil {
-		log.Fatalf("tlog init: %v", err)
-	}
+	resetTree = true // For each test that inits the tlog.
+	tresetTree()
 
 	os.Exit(t.Run())
 }

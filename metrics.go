@@ -5,6 +5,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
+// See dns.go for DNS-specific metrics.
+
 var (
 	metricMessageMeta = promauto.NewCounter(
 		prometheus.CounterOpts{

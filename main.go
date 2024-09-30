@@ -43,6 +43,7 @@ type Config struct {
 	SkipModulePrefixes       []string        `sconf:"optional" sconf-doc:"Modules matching this prefix (e.g. 'githubmirror.example.com/') are not notified about, and not shown on the home page."`
 	SkipModulePaths          []string        `sconf-doc:"Module paths that we won't notify about. E.g. the bare github.com, which would result in too many matches and notification emails."`
 	WebhooksAllowInternalIPs bool            `sconf:"optional" sconf-doc:"Allow delivering webhooks to internal IPs."`
+	DNS                      *DNS            `sconf:"optional" sconf-doc:"Configuration for authoritative DNS(SEC) server."`
 }
 
 type SubmissionIMAP struct {
@@ -144,6 +145,8 @@ func main() {
 		fmt.Fprintln(os.Stderr, "       gopherwatch describeconf >gopherwatch.conf")
 		fmt.Fprintln(os.Stderr, "       gopherwatch checkconf gopherwatch.conf")
 		fmt.Fprintln(os.Stderr, "       gopherwatch genconf [-mox] >gopherwatch.conf")
+		fmt.Fprintln(os.Stderr, "       gopherwatch gendnskey")
+		fmt.Fprintln(os.Stderr, "       gopherwatch dnslookup {module | \"toolchain\"} [basedomain]")
 		fmt.Fprintln(os.Stderr, "       gopherwatch opendb file.db")
 		flag.PrintDefaults()
 		os.Exit(2)
@@ -194,7 +197,19 @@ func main() {
 			SkipModulePrefixes:       []string{"github.1git.de/", "github.hscsec.cn/", "github.phpd.cn/", "github.skymusic.top/"},
 			SkipModulePaths:          []string{"github.com"},
 			WebhooksAllowInternalIPs: true,
+			DNS: &DNS{
+				Domain: "gopherwatch.localhost.",
+				NS: []NS{
+					{Name: "ns0", IPs: []string{"127.0.0.1", "::1"}},
+				},
+				SOAMailbox:  "gopher.gopherwatch.localhost.",
+				TTL:         60,
+				NegativeTTL: 60,
+				MetaTTL:     300,
+			},
 		}
+		config.DNS.ECDSA.PrivateKey, config.DNS.ECDSA.PublicKey = xecdsaGen()
+
 		if len(args) == 1 && args[0] == "-mox" {
 			config.SubmissionIMAP = nil
 			config.Mox = &Mox{
@@ -208,6 +223,24 @@ func main() {
 			logFatalx("describing config", err)
 		}
 		fmt.Fprintln(os.Stderr, `wrote config that works with "mox localserve" as mail server, see https://github.com/mjl-/mox`)
+
+	case "gendnskey":
+		if len(args) != 0 {
+			flag.Usage()
+		}
+
+		gendnskey()
+
+	case "dnslookup":
+		if len(args) != 1 && len(args) != 2 {
+			flag.Usage()
+		}
+
+		baseDomain := "l.gopherwatch.org."
+		if len(args) == 2 {
+			baseDomain = args[1]
+		}
+		dnslookup(baseDomain, args[0])
 
 	case "opendb":
 		// Open the database to perform upgrades, and close it again.
@@ -281,6 +314,12 @@ func parseConfig(filename string) error {
 	config.Admin.AddressParsed, err = smtp.ParseAddress(config.Admin.Address)
 	if err != nil {
 		return fmt.Errorf("parsing admin address: %v", err)
+	}
+
+	if config.DNS != nil {
+		if err := parseDNSConfig(config.DNS); err != nil {
+			return fmt.Errorf("parsing dns config: %v", err)
+		}
 	}
 
 	return nil

@@ -26,6 +26,8 @@ func (w *httpResponse) Write(buf []byte) (int, error) { return len(buf), nil }
 func (w *httpResponse) WriteHeader(statusCode int)    {}
 
 func TestAPI(t *testing.T) {
+	tresetTree()
+
 	api := API{}
 
 	api.Home(ctxbg)

@@ -3,6 +3,7 @@ package main
 import (
 	"archive/zip"
 	"context"
+	"crypto/tls"
 	"encoding/base64"
 	"encoding/csv"
 	"encoding/json"
@@ -11,6 +12,7 @@ import (
 	"fmt"
 	htmltemplate "html/template"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"runtime/debug"
@@ -122,12 +124,16 @@ func serve(args []string) {
 	fs := flag.NewFlagSet("serve", flag.ExitOnError)
 	var configPath string
 	var listenAddr, metricsAddr, adminAddr, webhookAddr string
+	var dnsudpaddr, dnstcpaddr, dnstlsaddr string
 	var dbpath string
 	fs.StringVar(&configPath, "config", "gopherwatch.conf", "path to config file")
 	fs.StringVar(&listenAddr, "listenaddr", "127.0.0.1:8073", "address to listen and serve public gopherwatch on")
 	fs.StringVar(&metricsAddr, "metricsaddr", "127.0.0.1:8074", "address to listen and serve metrics on")
 	fs.StringVar(&adminAddr, "adminaddr", "127.0.0.1:8075", "address to listen and serve the admin requests on")
 	fs.StringVar(&webhookAddr, "webhookaddr", "127.0.0.1:8076", "address to listen and serve the mox webhook requests on")
+	fs.StringVar(&dnsudpaddr, "dnsudpaddr", "", "udp address to serve dns on, eg :53")
+	fs.StringVar(&dnstcpaddr, "dnstcpaddr", "", "tcp address to serve dns on, eg :53")
+	fs.StringVar(&dnstlsaddr, "dnstlsaddr", "", "tcp address to serve dns on with ephemeral tls key/cert, eg :853")
 	fs.StringVar(&dbpath, "dbpath", "gopherwatch.db", "database, with users, subscriptions, etc")
 	fs.StringVar(&dataDir, "datadir", "data", "directory with tile cache and where instance notes are read from")
 	fs.BoolVar(&resetTree, "resettree", false, "reset tree state, useful to prevent catching up for a long time after not running local/test instance for a while")
@@ -145,6 +151,9 @@ func serve(args []string) {
 	if err := parseConfig(configPath); err != nil {
 		logFatalx("parsing config file", err)
 	}
+	if (dnsudpaddr != "" || dnstcpaddr != "" || dnstlsaddr != "") && config.DNS == nil {
+		logFatalx("checking dns config", fmt.Errorf("config.DNS must be set when serving dns"))
+	}
 
 	// Prepare environment, also used by tests.
 	servePrep(dbpath)
@@ -154,21 +163,70 @@ func serve(args []string) {
 	// Start delivery of webhooks.
 	go deliverHooks()
 
-	slog.Warn("listening for public", "addr", listenAddr)
+	slog.Warn("starting gopherwatch", "version", version, "listenaddr", listenAddr, "adminaddr", adminAddr, "metricsaddr", metricsAddr, "webhookaddr", webhookAddr, "dnsudpaddr", dnsudpaddr, "dnstcpaddr", dnstcpaddr, "dnstlsaddr", dnstlsaddr)
+
+	// todo: we may want a mode where we can be started as root, then bind to sockets, then execute unprivileged child process while passing the sockets. for now, os-specific mechanisms like cap_net_bind_service on linux can be used.
+	// todo: on dns, may want to put a limit (rate of connections, and current open connections) on tcp connections, and rate limit on udp requests
+	if dnsudpaddr != "" {
+		udpconn, err := net.ListenPacket("udp", dnsudpaddr)
+		xfatalf(err, "listen udp")
+		go func() {
+			for i := 0; i < 10; i++ {
+				go func() {
+					buf := make([]byte, 1500)
+					for {
+						n, remaddr, err := udpconn.ReadFrom(buf)
+						xfatalf(err, "read packet")
+
+						metricDNSTransport.WithLabelValues("udp").Inc()
+						serveUDP(udpconn, buf[:n], remaddr)
+					}
+				}()
+			}
+		}()
+	}
+
+	if dnstcpaddr != "" {
+		tcpconn, err := net.Listen("tcp", dnstcpaddr)
+		xfatalf(err, "listen tcp")
+		go func() {
+			for {
+				metricDNSTransport.WithLabelValues("tcp").Inc()
+				conn, err := tcpconn.Accept()
+				xfatalf(err, "accept")
+				go serveTCP(conn, true)
+			}
+		}()
+	}
+
+	if dnstlsaddr != "" {
+		tlsConfig := tls.Config{
+			MinVersion:   tls.VersionTLS13,
+			Certificates: []tls.Certificate{xmakeCert()},
+		}
+		tlsconn, err := tls.Listen("tcp", dnstlsaddr, &tlsConfig)
+		xfatalf(err, "listen tls")
+		go func() {
+			for {
+				metricDNSTransport.WithLabelValues("tls").Inc()
+				conn, err := tlsconn.Accept()
+				xfatalf(err, "accept")
+				go serveTCP(conn, true)
+			}
+		}()
+	}
+
 	if metricsAddr != "" {
-		slog.Warn("listening for metrics", "metricsaddr", metricsAddr)
 		go func() {
 			logFatalx("metrics listener", http.ListenAndServe(metricsAddr, metricsMux))
 		}()
 	}
 	if adminAddr != "" {
-		slog.Warn("listening for admin", "adminaddr", adminAddr)
 		go func() {
 			logFatalx("admin listener", http.ListenAndServe(adminAddr, nil))
 		}()
 	}
 	if webhookMux != nil && webhookAddr != "" {
-		slog.Warn("listening for webhooks", "webhookaddr", webhookAddr)
 		go func() {
 			logFatalx("webhook listener", http.ListenAndServe(webhookAddr, webhookMux))
 		}()

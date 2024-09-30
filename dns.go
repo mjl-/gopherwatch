@@ -168,8 +168,9 @@ func gendnskey() {
 		PublicKey: base64.StdEncoding.EncodeToString(npubkey),
 	}
 
-	fmt.Printf("%s\n", dnskey.ToDS(dns.SHA256).String())
 	fmt.Printf("%s\n", dnskey.String())
+	// DS key depends on correct owner name, no point printing it with example name.
+	fmt.Printf("DS record will be printed at startup\n")
 }
 
 func keybuf(v *big.Int) []byte {

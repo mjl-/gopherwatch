@@ -441,6 +441,11 @@ func process(log *slog.Logger, buf []byte, udp bool, remaddr net.Addr) (respmsg 
 
 	log = log.With("tid", dnsTid.Add(1), "dnsmsgid", inmsg.Id)
 
+	log.Log(context.Background(), LevelTrace, "incoming request", "size", len(buf), "addr", remaddr, "msg", inmsg)
+	defer func() {
+		log.Log(context.Background(), LevelTrace, "outgoing response", "rerr", rerr, "respmsg", respmsg)
+	}()
+
 	if inmsg.Response {
 		return response(inmsg, dns.RcodeFormatError), false, true, fmt.Errorf("request has response bit set")
 	}
@@ -542,14 +547,7 @@ func process(log *slog.Logger, buf []byte, udp bool, remaddr net.Addr) (respmsg 
 	// note: we don't have a use for options DAU, DHU, N3U ("dnssec algorithm/hash/nsec3 understood"). we only have one way to respond.
 	// todo: should we do anything special for unexpected answer/authority section, and anything in extra we don't understand (and isn't edns0)? we currently just ignore it.
 
-	log.Log(context.Background(), LevelTrace, "incoming request", "size", len(buf), "addr", remaddr, "dnssecok", dnssecok, "msg", inmsg, "question", q)
-
-	var qname, bname, sname, path, version string
 	defer func() {
-		defer func() {
-			log.Log(context.Background(), LevelTrace, "outgoing response", "qtype", dns.Type(q.Qtype), "qname", qname, "bname", bname, "sname", sname, "path", path, "version", version, "rerr", rerr, "respmsg", respmsg)
-		}()
-
 		// Add a SOA record to authority section in case of NXDOMAIN and NODATA.
 		if (respmsg.Rcode == dns.RcodeNameError || respmsg.Rcode == dns.RcodeSuccess) && len(respmsg.Answer) == 0 && !(dnssecok && q.Qtype == dns.TypeNSEC) {
 			rsoa := zoneSOA
@@ -614,12 +612,12 @@ func process(log *slog.Logger, buf []byte, udp bool, remaddr net.Addr) (respmsg 
 		}
 	}()
 
-	qname = strings.ToLower(q.Name)
+	qname := strings.ToLower(q.Name)
 	if qname != config.DNS.Domain && !strings.HasSuffix("."+qname, config.DNS.Domain) {
 		// Make it clear something is wrong on the requestor side.
 		return response(inmsg, dns.RcodeRefused), false, false, fmt.Errorf("request for unknown domain %q", qname)
 	}
-	bname = strings.TrimSuffix(qname, config.DNS.Domain)
+	bname := strings.TrimSuffix(qname, config.DNS.Domain)
 	if bname == "" {
 		bname = "."
 	}
@@ -661,7 +659,7 @@ func process(log *slog.Logger, buf []byte, udp bool, remaddr net.Addr) (respmsg 
 	case strings.HasSuffix(bname, ".v0."):
 		// todo: should we be responding to qtype rrsig & nsec (besides txt)? it seems so: https://datatracker.ietf.org/doc/html/rfc4035#section-3
 
-		sname = strings.TrimSuffix(bname, ".v0.")
+		sname := strings.TrimSuffix(bname, ".v0.")
 		if sname == "toolchain" {
 			if q.Qtype != dns.TypeTXT {
 				return response(inmsg, dns.RcodeSuccess), false, false, nil
@@ -671,7 +669,7 @@ func process(log *slog.Logger, buf []byte, udp bool, remaddr net.Addr) (respmsg 
 			dbq := bstore.QueryDB[ModuleVersion](context.Background(), database)
 			mvl, err := dbq.FilterNonzero(ModuleVersion{Module: "golang.org/toolchain"}).List()
 			if err != nil {
-				return response(inmsg, dns.RcodeServerFailure), false, false, fmt.Errorf("lookup module %q in db: %v", path, err)
+				return response(inmsg, dns.RcodeServerFailure), false, false, fmt.Errorf("lookup golang.org/toolchain in db: %v", err)
 			}
 
 			tc := toolchains(mvl)
@@ -691,6 +689,11 @@ func process(log *slog.Logger, buf []byte, udp bool, remaddr net.Addr) (respmsg 
 			}
 			return response(inmsg, dns.RcodeSuccess, &txt), false, false, nil
 		}
+
+		var path, version string
+		defer func() {
+			log.Log(context.Background(), LevelTrace, "dns module result", "qtype", dns.Type(q.Qtype), "qname", qname, "sname", sname, "path", path, "version", version, "rerr", rerr)
+		}()
 
 		var err error
 		path, err = parseName(sname)

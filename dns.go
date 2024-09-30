@@ -510,7 +510,7 @@ func process(log *slog.Logger, buf []byte, udp bool, remaddr net.Addr) (respmsg 
 		}
 	}()
 
-	metricDNSOpcode.WithLabelValues(dns.OpcodeToString[inmsg.Opcode])
+	metricDNSOpcode.WithLabelValues(dns.OpcodeToString[inmsg.Opcode]).Inc()
 	if inmsg.Opcode != dns.OpcodeQuery {
 		return response(inmsg, dns.RcodeNotImplemented), false, false, fmt.Errorf("request opcode %d %q not implemented", inmsg.Opcode, dns.OpcodeToString[inmsg.Opcode])
 	}
@@ -528,7 +528,7 @@ func process(log *slog.Logger, buf []byte, udp bool, remaddr net.Addr) (respmsg 
 		if dnssecok {
 			dnssec = "yes"
 		}
-		metricDNSQuery.WithLabelValues(dns.TypeToString[q.Qtype], dnssec, dns.RcodeToString[respmsg.Rcode])
+		metricDNSQuery.WithLabelValues(dns.TypeToString[q.Qtype], dnssec, dns.RcodeToString[respmsg.Rcode]).Inc()
 	}()
 
 	// Special queries that are actually more like opcodes. ANY is handled later.

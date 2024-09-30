@@ -237,10 +237,10 @@ func webhookIncoming(w http.ResponseWriter, r *http.Request) {
 			Flags: []string{config.KeywordPrefix + "signup", `\seen`, `\answered`},
 		}
 		if _, err := webapiClient.MessageFlagsAdd(ctx, flagsReq); err != nil {
-			metricWebAPIResults.WithLabelValues("MessageFlagsAdd", webapiErrorCode(err))
+			metricWebAPIResults.WithLabelValues("MessageFlagsAdd", webapiErrorCode(err)).Inc()
 			return fmt.Errorf("setting seen and answered message flags: %v", err)
 		}
-		metricWebAPIResults.WithLabelValues("MessageFlagsAdd", "ok")
+		metricWebAPIResults.WithLabelValues("MessageFlagsAdd", "ok").Inc()
 
 		metricIncomingSignup.Inc()
 		return nil
@@ -300,7 +300,7 @@ func webapiSend(ctx context.Context, meta bool, user User, origMessageID string,
 		if rerr != nil {
 			result = webapiErrorCode(rerr)
 		}
-		metricWebAPIResults.WithLabelValues("Send", result)
+		metricWebAPIResults.WithLabelValues("Send", result).Inc()
 	}()
 	resp, err := webapiClient.Send(ctx, req)
 	if err != nil {

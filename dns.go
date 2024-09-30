@@ -300,7 +300,11 @@ func serveUDP(uconn toWriter, buf []byte, remaddr net.Addr) {
 		return
 	}
 	if err != nil {
-		log.Error("process request", "err", err)
+		if m.Rcode == dns.RcodeServerFailure {
+			log.Error("process request", "err", err)
+		} else {
+			log.Debug("process request", "err", err)
+		}
 	}
 	out, err := m.Pack()
 	if err != nil {
@@ -369,7 +373,11 @@ func serveTCP(conn net.Conn, isTLS bool) {
 
 		m, dropconn, _, err := process(log, buf[:int(size)], false, remaddr)
 		if err != nil {
-			log.Error("process message", "err", err)
+			if m.Rcode == dns.RcodeServerFailure {
+				log.Error("process request", "err", err)
+			} else {
+				log.Debug("process request", "err", err)
+			}
 		}
 		if dropconn {
 			log.Error("could not parse message, dropping connection")

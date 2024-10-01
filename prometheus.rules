@@ -48,7 +48,7 @@ groups:
       page: workhours
 
   - alert: gropherwatch-webapi-result-errors
-    expr: rate(gopherwatch_webapi_results_total{method!="ok"}[5m]) > 0
+    expr: rate(gopherwatch_webapi_results_total{result!="ok"}[5m]) > 0
     annotations:
       summary: errors making webapi calls
     labels:

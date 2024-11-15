@@ -197,7 +197,7 @@ func tresetTree() {
 	sumsrv = sumdb.NewTestServer(testskey, func(path, version string) ([]byte, error) {
 		return gosum(path, version)
 	})
-	sumhttpsrv = httptest.NewServer(NewServer(sumsrv)) // todo: replace with sumdb.NewServer once fixed
+	sumhttpsrv = httptest.NewServer(sumdb.NewServer(sumsrv))
 	config.SumDB.BaseURL = sumhttpsrv.URL
 
 	if _, err := bstore.QueryDB[ModuleVersion](ctxbg, database).Delete(); err != nil {

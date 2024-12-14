@@ -244,7 +244,7 @@ func parseDNSConfig(conf *DNS) error {
 	}
 	zonePrivKey.D.SetBytes(conf.ECDSA.PrivateKey)
 	zonePrivKey.PublicKey.X.SetBytes(conf.ECDSA.PublicKey[:32])
-	zonePrivKey.PublicKey.X.SetBytes(conf.ECDSA.PublicKey[32:])
+	zonePrivKey.PublicKey.Y.SetBytes(conf.ECDSA.PublicKey[32:])
 	zoneDNSKEY = dns.DNSKEY{
 		Hdr:       dns.RR_Header{Name: conf.Domain, Rrtype: dns.TypeDNSKEY, Class: dns.ClassINET, Ttl: conf.MetaTTL},
 		Flags:     dns.ZONE | dns.SEP,

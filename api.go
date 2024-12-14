@@ -329,7 +329,7 @@ func signup(ctx context.Context, email smtp.Address, viaWebsite bool) (user User
 			if viaWebsite {
 				msg = "Signup through website"
 			}
-			xaddUserLogf(tx, user.ID, msg)
+			xaddUserLogf(tx, user.ID, "%s", msg)
 
 			return nil
 		}
@@ -357,7 +357,7 @@ func signup(ctx context.Context, email smtp.Address, viaWebsite bool) (user User
 		if viaWebsite {
 			msg = "Signup through website for existing account, sending password reset."
 		}
-		xaddUserLogf(tx, user.ID, msg)
+		xaddUserLogf(tx, user.ID, "%s", msg)
 
 		return nil
 	})

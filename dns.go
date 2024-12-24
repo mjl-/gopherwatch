@@ -308,7 +308,7 @@ func serveUDP(uconn toWriter, buf []byte, remaddr net.Addr) {
 	}
 	out, err := m.Pack()
 	if err != nil {
-		// todo: should response with a prepare servfail packet.
+		// todo: should response with a prepared servfail packet.
 		log.Error("pack response", "err", err)
 		return
 	}
@@ -690,9 +690,10 @@ func process(log *slog.Logger, buf []byte, udp bool, remaddr net.Addr) (respmsg 
 			return response(inmsg, dns.RcodeSuccess, &txt), false, false, nil
 		}
 
-		var path, version string
+		var path string
+		var versions []string
 		defer func() {
-			log.Log(context.Background(), LevelTrace, "dns module result", "qtype", dns.Type(q.Qtype), "qname", qname, "sname", sname, "path", path, "version", version, "rerr", rerr)
+			log.Log(context.Background(), LevelTrace, "dns module result", "qtype", dns.Type(q.Qtype), "qname", qname, "sname", sname, "path", path, "versions", versions, "rerr", rerr)
 		}()
 
 		var err error
@@ -733,6 +734,8 @@ func process(log *slog.Logger, buf []byte, udp bool, remaddr net.Addr) (respmsg 
 			return response(inmsg, dns.RcodeServerFailure), false, false, fmt.Errorf("lookup module %q in db: %v", path, err)
 		}
 		if len(majorVersions) > 0 {
+			versions = slices.Collect(maps.Values(majorVersions))
+
 			if q.Qtype != dns.TypeTXT {
 				return response(inmsg, dns.RcodeSuccess), false, false, nil
 			}

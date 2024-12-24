@@ -35,8 +35,8 @@ func sendTake() {
 // Caller must have checked the rate limiter.
 func send(ctx context.Context, meta bool, user User, origMessageID, subject, text, html string) (sendID string, rerr error) {
 	if config.Mox != nil {
-		sendID, _, _, err := webapiSend(ctx, meta, user, origMessageID, subject, text, html)
-		return sendID, err
+		sendID, _, _, rerr = webapiSend(ctx, meta, user, origMessageID, subject, text, html)
+		return sendID, rerr
 	}
 
 	// Compose ourselves and submit over SMTP.

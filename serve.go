@@ -504,7 +504,7 @@ func serveAPI(apiHandler http.Handler) http.HandlerFunc {
 			// All other endpoints require authentication.
 			csrfToken := r.Header.Get("x-csrf")
 			sessionCookie, _ := r.Cookie("gopherwatchsession")
-			if csrfToken == "" && sessionCookie == nil || sessionCookie.Value == "" {
+			if csrfToken == "" && (sessionCookie == nil || sessionCookie.Value == "") {
 				panic(&sherpa.Error{Code: "user:noAuth", Message: "no session"})
 			}
 

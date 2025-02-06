@@ -440,6 +440,9 @@ func TestDNS(t *testing.T) {
 						nsec = rrparse(ts.in.Question[0].Name + " 60 nsec \000." + ts.in.Question[0].Name + " (rrsig nsec nxname)")
 					} else {
 						types := []uint16{dns.TypeA, dns.TypeNS, dns.TypeSOA, dns.TypeHINFO, dns.TypeTXT, dns.TypeAAAA, dns.TypeRRSIG, dns.TypeNSEC, dns.TypeDNSKEY}
+						if ts.in.Question[0].Name == "v0.gw.example." || strings.HasSuffix(ts.in.Question[0].Name, "v0.gw.example.") {
+							types = []uint16{dns.TypeHINFO, dns.TypeTXT, dns.TypeRRSIG, dns.TypeNSEC}
+						}
 						types = slices.DeleteFunc(types, func(v uint16) bool { return v == ts.in.Question[0].Qtype })
 						var typestr []string
 						for _, t := range types {

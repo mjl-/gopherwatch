@@ -547,6 +547,7 @@ func process(log *slog.Logger, buf []byte, udp bool, remaddr net.Addr) (respmsg 
 	// note: we don't have a use for options DAU, DHU, N3U ("dnssec algorithm/hash/nsec3 understood"). we only have one way to respond.
 	// todo: should we do anything special for unexpected answer/authority section, and anything in extra we don't understand (and isn't edns0)? we currently just ignore it.
 
+	var isv0 bool
 	defer func() {
 		// Add a SOA record to authority section in case of NXDOMAIN and NODATA.
 		if (respmsg.Rcode == dns.RcodeNameError || respmsg.Rcode == dns.RcodeSuccess) && len(respmsg.Answer) == 0 && !(dnssecok && q.Qtype == dns.TypeNSEC) {
@@ -590,10 +591,13 @@ func process(log *slog.Logger, buf []byte, udp bool, remaddr net.Addr) (respmsg 
 				// NXNAME is from https://datatracker.ietf.org/doc/html/draft-ogud-fake-nxdomain-type/#section-4
 				nsec.TypeBitMap = []uint16{dns.TypeRRSIG, dns.TypeNSEC, dns.TypeNXNAME}
 			} else {
-				nsec.TypeBitMap = []uint16{}
 				// note: these types have to be in ascending order of their id.
-				// todo: can we leave out NS and DNSKEY if under ".v0."? so resolvers know there will be no delegation, and they won't do qname minimization.
-				for _, t := range []uint16{dns.TypeA, dns.TypeNS, dns.TypeSOA, dns.TypeHINFO, dns.TypeTXT, dns.TypeAAAA, dns.TypeRRSIG, dns.TypeNSEC, dns.TypeDNSKEY} {
+				types := []uint16{dns.TypeA, dns.TypeNS, dns.TypeSOA, dns.TypeHINFO, dns.TypeTXT, dns.TypeAAAA, dns.TypeRRSIG, dns.TypeNSEC, dns.TypeDNSKEY}
+				if isv0 {
+					types = []uint16{dns.TypeHINFO, dns.TypeTXT, dns.TypeRRSIG, dns.TypeNSEC}
+				}
+				nsec.TypeBitMap = []uint16{}
+				for _, t := range types {
 					if t != q.Qtype {
 						nsec.TypeBitMap = append(nsec.TypeBitMap, t)
 					}
@@ -656,8 +660,14 @@ func process(log *slog.Logger, buf []byte, udp bool, remaddr net.Addr) (respmsg 
 		}
 		return response(inmsg, dns.RcodeSuccess, rr...), false, false, nil
 
+	case bname == "v0.":
+		isv0 = true
+		return response(inmsg, dns.RcodeSuccess), false, false, nil
+
 	case strings.HasSuffix(bname, ".v0."):
 		// todo: should we be responding to qtype rrsig & nsec (besides txt)? it seems so: https://datatracker.ietf.org/doc/html/rfc4035#section-3
+
+		isv0 = true
 
 		sname := strings.TrimSuffix(bname, ".v0.")
 		if sname == "toolchain" {

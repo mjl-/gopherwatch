@@ -17,7 +17,7 @@ groups:
     labels:
       page: workhours
 
-  - alert: gropherwatch-tlog-records
+  - alert: gopherwatch-tlog-records
     expr: rate(gopherwatch_tlog_records[5m]) == 0
     for: 4h
     annotations:
@@ -25,7 +25,7 @@ groups:
     labels:
       page: workhours
 
-  - alert: gropherwatch-tlog-processed
+  - alert: gopherwatch-tlog-processed
     expr: rate(gopherwatch_tlog_processed[5m]) == 0
     for: 4h
     annotations:
@@ -33,21 +33,21 @@ groups:
     labels:
       page: workhours
 
-  - alert: gropherwatch-submission-errors
+  - alert: gopherwatch-submission-errors
     expr: rate(gopherwatch_message_submit_errors_total[5m]) > 0
     annotations:
       summary: errors while submitting email for delivery
     labels:
       page: workhours
 
-  - alert: gropherwatch-incoming-processing-errors
+  - alert: gopherwatch-incoming-processing-errors
     expr: rate(gopherwatch_incoming_process_errors_total[5m]) > 0
     annotations:
       summary: errors while processing received messages, like dsns
     labels:
       page: workhours
 
-  - alert: gropherwatch-webapi-result-errors
+  - alert: gopherwatch-webapi-result-errors
     expr: rate(gopherwatch_webapi_results_total{result!="ok"}[5m]) > 0
     annotations:
       summary: errors making webapi calls

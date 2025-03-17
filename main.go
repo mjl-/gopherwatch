@@ -210,7 +210,8 @@ func main() {
 		}
 		config.DNS.ECDSA.PrivateKey, config.DNS.ECDSA.PublicKey = xecdsaGen()
 
-		if len(args) == 1 && args[0] == "-mox" {
+		mox := len(args) == 1 && args[0] == "-mox"
+		if mox {
 			config.SubmissionIMAP = nil
 			config.Mox = &Mox{
 				WebAPI{"http://mox@localhost:moxmoxmox@localhost:1080/webapi/v0/", "mox@localhost", "moxmoxmox"},
@@ -222,7 +223,9 @@ func main() {
 		if err := sconf.Describe(os.Stdout, config); err != nil {
 			logFatalx("describing config", err)
 		}
-		fmt.Fprintln(os.Stderr, `wrote config that works with "mox localserve" as mail server, see https://github.com/mjl-/mox`)
+		if mox {
+			fmt.Fprintln(os.Stderr, `wrote config that works with "mox localserve" as mail server, see https://github.com/mjl-/mox`)
+		}
 
 	case "gendnskey":
 		if len(args) != 0 {

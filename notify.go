@@ -6,23 +6,85 @@ import (
 	"log/slog"
 	"time"
 
+	"golang.org/x/mod/module"
+	"golang.org/x/mod/semver"
+
 	"github.com/mjl-/bstore"
 	"github.com/mjl-/mox/smtpclient"
 )
+
+type userModule struct {
+	UserID int64
+	Module string
+}
+
+func gatherNotifyUpdates(ctx context.Context) (map[int64][]ModuleUpdate, map[int64]map[string]string, error) {
+	userUpdates := map[int64][]ModuleUpdate{}
+	newVersions := map[userModule]string{}        // User ID, Module -> highest new version.
+	prevVersions := map[int64]map[string]string{} // User ID -> Module -> highest previous version.
+
+	err := database.Read(ctx, func(tx *bstore.Tx) error {
+		q := bstore.QueryTx[ModuleUpdate](tx)
+		q.FilterEqual("MessageID", 0)
+		q.FilterEqual("HookID", 0)
+		err := q.ForEach(func(modup ModuleUpdate) error {
+			userUpdates[modup.UserID] = append(userUpdates[modup.UserID], modup)
+
+			k := userModule{modup.UserID, modup.Module}
+			v := newVersions[k]
+			nv := modup.Version
+			if v == "" || semver.Compare(v, nv) < 0 {
+				newVersions[k] = nv
+			}
+			return nil
+		})
+		if err != nil {
+			return fmt.Errorf("gathering unnotified modules: %v", err)
+		}
+
+		for um, nv := range newVersions {
+			var prevVersion string
+			qm := bstore.QueryTx[ModuleUpdate](tx)
+			qm.FilterNonzero(ModuleUpdate{UserID: um.UserID, Module: um.Module})
+			err := qm.ForEach(func(om ModuleUpdate) error {
+				if om.MessageID == 0 || om.HookID != 0 {
+					// Not yet notified, or this is a webhook.
+					return nil
+				}
+				if module.IsPseudoVersion(om.Version) {
+					return nil
+				}
+				if (prevVersion == "" || semver.Compare(prevVersion, om.Version) < 0) && semver.Compare(om.Version, nv) < 0 {
+					prevVersion = om.Version
+				}
+				return nil
+			})
+			if err != nil {
+				return fmt.Errorf("gathering previous module update version: %v", err)
+			}
+			if prevVersion != "" {
+				m := prevVersions[um.UserID]
+				if m == nil {
+					m = map[string]string{}
+					prevVersions[um.UserID] = m
+				}
+				m[um.Module] = prevVersion
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, nil, fmt.Errorf("gathering module updates to notify about: %w", err)
+	}
+	return userUpdates, prevVersions, nil
+}
 
 // Send a message to all users with updates we haven't notified about. Taking
 // backoff and the interval into consideration.
 func notify() {
 	ctx := context.Background()
 
-	userUpdates := map[int64][]ModuleUpdate{}
-	q := bstore.QueryDB[ModuleUpdate](ctx, database)
-	q.FilterEqual("MessageID", 0)
-	q.FilterEqual("HookID", 0)
-	err := q.ForEach(func(modup ModuleUpdate) error {
-		userUpdates[modup.UserID] = append(userUpdates[modup.UserID], modup)
-		return nil
-	})
+	userUpdates, prevVersions, err := gatherNotifyUpdates(ctx)
 	if err != nil {
 		logErrorx("gathering module updates to notify about", err)
 		return
@@ -58,7 +120,7 @@ func notify() {
 		}
 
 		loginToken := tokenSign(tokentypeLogin, time.Now(), u.ID)
-		subject, text, html, err := composeModuleUpdates(u, loginToken, updates)
+		subject, text, html, err := composeModuleUpdates(u, loginToken, updates, prevVersions[userID])
 		if err != nil {
 			log.Error("composing update notification text", "err", err)
 			return

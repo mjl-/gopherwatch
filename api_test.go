@@ -267,7 +267,30 @@ require (
 	err = stepTlog()
 	tcheckf(t, err, "moving empty tlog forward")
 	up = updates()
-	tcompare(t, len(up), 1+1)
+	tcompare(t, len(up), 1+1) // Two subscriptions
+
+	userUpdates, prevVersions, err := gatherNotifyUpdates(ctxbg)
+	tcheckf(t, err, "gather notify modules")
+	tcompare(t, len(userUpdates), 1)
+	tcompare(t, prevVersions, map[int64]map[string]string{})
+
+	notify()
+	tneedmail(t, "1 module with 1 new version")
+
+	// Add a new version. Previous version should be found.
+	_, err = sumsrv.Lookup(ctxbg, module.Version{Path: "vcs.localhost/testrepo", Version: "v0.0.3"})
+	tcheckf(t, err, "add module to sumdb")
+	_, err = sumsrv.Lookup(ctxbg, module.Version{Path: "vcs.localhost/testrepo", Version: "v0.0.2"})
+	tcheckf(t, err, "add module to sumdb")
+	err = stepTlog()
+	tcheckf(t, err, "moving tlog forward")
+	up = updates()
+	tcompare(t, len(up), 2*2) // Two subscriptions, each two updates.
+	userUpdates, prevVersions, err = gatherNotifyUpdates(ctxbg)
+	tcheckf(t, err, "gather notify modules")
+	tcompare(t, len(userUpdates), 1)
+	tcompare(t, len(userUpdates[user.ID]), 2) // Two mail subscriptions.
+	tcompare(t, prevVersions, map[int64]map[string]string{user.ID: {"vcs.localhost/testrepo": "v0.0.1"}})
 
 	nmsub.Module = "golang.org/toolchain"
 	nmsub.OlderVersions = true
@@ -278,7 +301,7 @@ require (
 	api.Forward(xctx) // Forward through index.
 	up = updates()
 	tcompare(t, len(up), 1+0)
-	mailtx := tneedmail(t, "2 modules with 2 new versions")
+	mailtx := tneedmail(t, "2 modules with 3 new versions")
 
 	_, err = sumsrv.Lookup(ctxbg, module.Version{Path: "golang.org/toolchain", Version: "v0.0.1-go1.21.1.openbsd-amd64"})
 	tcheckf(t, err, "add module to sumdb")
@@ -417,22 +440,25 @@ require (
 	// Delivery webhooks.
 	hooktokens = make(chan struct{})
 	go deliverHooksOnce()
-	select {
-	case hooktokens <- struct{}{}:
-	case <-time.After(time.Second):
-		t.Fatalf("no request for hook delivery in 1s")
-	}
-	select {
-	case <-hooktokens: // Wait for completion
-	case <-time.After(time.Second):
-		t.Fatalf("hook delivery not seen within 1s")
+	// Two hooks, one for testrepo v0.0.1, one for latest v0.0.3.
+	for range 2 {
+		select {
+		case hooktokens <- struct{}{}:
+		case <-time.After(time.Second):
+			t.Fatalf("no request for hook delivery in 1s")
+		}
+		select {
+		case <-hooktokens: // Wait for completion
+		case <-time.After(time.Second):
+			t.Fatalf("hook delivery not seen within 1s")
+		}
 	}
 	select {
 	case hooktokens <- struct{}{}:
 		t.Fatalf("saw unexpected hook delivery request")
 	case <-time.After(time.Second / 10):
 	}
-	tcompare(t, len(hooks), 1)
+	tcompare(t, len(hooks), 2)
 	const hookID = 1                                                  // First.
 	tneederr(t, "user:error", func() { api.HookCancel(ctx, hookID) }) // Already done.
 	tneederr(t, "user:error", func() { api.HookKick(ctx, hookID) })   // Already done.

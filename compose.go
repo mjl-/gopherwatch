@@ -14,6 +14,7 @@ import (
 	texttemplate "text/template"
 	"time"
 
+	"golang.org/x/mod/module"
 	"golang.org/x/mod/semver"
 )
 
@@ -146,23 +147,63 @@ func guessURLs(module, version string) (repoURL, tagURL, docURL string) {
 	return
 }
 
-func composeModuleUpdates(u User, loginToken string, updates []ModuleUpdate) (subject, text, html string, err error) {
+func guessDiffURL(module, prevVersion, curVersion string) (diffURL string) {
+	t := strings.Split(module, "/")
+	if len(t) < 3 {
+		return ""
+	}
+
+	// All recognized sites have paths of the form "$host/$dir1/$dir2", so everything
+	// after that should be part of the version.
+	host := t[0]
+	repoURL := "https://" + strings.Join(t[:3], "/")
+	oldVersion := strings.Join(append(t[3:], prevVersion), "/")
+	newVersion := strings.Join(append(t[3:], curVersion), "/")
+
+	if strings.Contains(host, "github") && len(t) >= 3 {
+		oldVersion = url.QueryEscape(oldVersion)
+		newVersion = url.QueryEscape(newVersion)
+		return repoURL + "/compare/" + oldVersion + "..." + newVersion
+	} else if strings.Contains(host, "gitlab") && len(t) >= 3 {
+		return repoURL + "/-/compare/" + oldVersion + "..." + newVersion
+	} else if strings.Contains(host, "codeberg") {
+		oldVersion = url.QueryEscape(oldVersion)
+		newVersion = url.QueryEscape(newVersion)
+		return repoURL + "/compare/" + oldVersion + "..." + newVersion
+	} else if host == "golang.org" && len(t) >= 3 && t[1] == "x" {
+		repoURL = "https://github.com/golang/" + t[2]
+		oldVersion = url.QueryEscape(oldVersion)
+		newVersion = url.QueryEscape(newVersion)
+		return repoURL + "/compare/" + oldVersion + "..." + newVersion
+	} else if strings.Contains(host, "bitbucket") && len(t) >= 3 {
+		oldVersion = url.PathEscape(oldVersion)
+		newVersion = url.PathEscape(newVersion)
+		// Versions in reverse, tags treated as "branch", and CR as separator...
+		return repoURL + "/branches/compare/" + newVersion + "%0D" + oldVersion
+	}
+
+	return ""
+}
+
+func composeModuleUpdates(u User, loginToken string, updates []ModuleUpdate, prevModuleVersions map[string]string) (subject, text, html string, err error) {
 	type version struct {
 		Version string
 		DocURL  string
 		TagURL  string
 	}
 	type moduleVersion struct {
-		Module   string
-		RepoURL  string
-		Versions []version
+		Module      string
+		RepoURL     string
+		Versions    []version
+		DiffURL     string
+		DiffVersion string
 	}
 
 	modVersions := map[string]moduleVersion{}
 	for _, up := range updates {
 		mv, ok := modVersions[up.Module]
 		if !ok {
-			mv = moduleVersion{up.Module, "", nil}
+			mv = moduleVersion{up.Module, "", nil, "", ""}
 		}
 		repoURL, tagURL, docURL := guessURLs(up.Module, up.Version)
 		mv.RepoURL = repoURL
@@ -174,6 +215,12 @@ func composeModuleUpdates(u User, loginToken string, updates []ModuleUpdate) (su
 		sort.Slice(mv.Versions, func(i, j int) bool {
 			return semver.Compare(mv.Versions[i].Version, mv.Versions[j].Version) < 0
 		})
+		if curVersion := mv.Versions[len(mv.Versions)-1]; !module.IsPseudoVersion(curVersion.Version) {
+			if prevVersion, ok := prevModuleVersions[mv.Module]; ok {
+				mv.DiffVersion = prevVersion
+				mv.DiffURL = guessDiffURL(mv.Module, prevVersion, curVersion.Version)
+			}
+		}
 		l = append(l, mv)
 	}
 	sort.Slice(l, func(i, j int) bool {
@@ -229,7 +276,10 @@ func composeSample(kind string, user User, loginToken string) (subject, text, ht
 				Version: "v0.0.9",
 			},
 		}
-		return composeModuleUpdates(user, loginToken, updates)
+		prevModuleVersions := map[string]string{
+			"github.com/mjl-/mox": "v0.0.8",
+		}
+		return composeModuleUpdates(user, loginToken, updates, prevModuleVersions)
 	}
 	return "", "", "", fmt.Errorf("unknown message kind %q", kind)
 }

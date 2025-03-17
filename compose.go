@@ -149,7 +149,7 @@ func guessURLs(module, version string) (repoURL, tagURL, docURL string) {
 
 func guessDiffURL(module, prevVersion, curVersion string) (diffURL string) {
 	t := strings.Split(module, "/")
-	if len(t) < 3 {
+	if len(t) < 3 || strings.HasSuffix(prevVersion, "+incompatible") || strings.HasSuffix(curVersion, "+incompatible") {
 		return ""
 	}
 

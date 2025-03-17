@@ -8,14 +8,14 @@
 		<th title="Links to the likely URL of the repository, but can guess wrong.">Module</th>
 		<th title="Link to documentation at pkg.go.dev">Doc</th>
 		<th>Versions</th>
-		<th title="Source code diff between latest tagged version and previous tagged version.">Diff to previous</th>
+		<th title="Source code diff between latest tagged version and previous tagged version.">Previous</th>
 	</tr>
 {{ range $mv := .ModuleVersions }}
 	<tr>
 		<td>{{ if $mv.RepoURL }}<a href="{{ $mv.RepoURL }}">{{ $mv.Module }}</a>{{ else }}{{ $mv.Module }}{{ end }}</td>
 		<td><a href="https://pkg.go.dev/{{ $mv.Module }}">Doc</a></td>
 		<td>{{ range $v := $mv.Versions }} {{ if $v.TagURL }}<a href="{{ $v.TagURL }}">{{ $v.Version }}</a>{{ else }}{{ $v.Version }}{{ end }}{{ end }}</td>
-		<td>{{ if $mv.DiffURL }}Diff <a href="{{ $mv.DiffURL }}">{{ $mv.DiffVersion }}</a>{{ end }}</td>
+		<td>{{ if $mv.DiffURL }}Diff: <a href="{{ $mv.DiffURL }}">{{ $mv.DiffVersion }}</a>{{ end }}</td>
 	</tr>
 {{ end }}
 </table>

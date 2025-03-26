@@ -16,7 +16,7 @@ github.com/mjl-/adns
 github.com/mjl-/adns/internal/bytealg
 github.com/mjl-/adns/internal/itoa
 github.com/mjl-/adns/internal/singleflight
-# github.com/mjl-/bstore v0.0.7
+# github.com/mjl-/bstore v0.0.8
 ## explicit; go 1.22
 github.com/mjl-/bstore
 # github.com/mjl-/mox v0.0.12-0.20240628083946-367e968199bb

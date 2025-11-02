@@ -247,6 +247,7 @@ func forwardProcessLatest(latestBuf []byte) error {
 				slog.Error("http transaction for posting sumdb latest state", "url", s, "err", err)
 				return
 			}
+			defer resp.Body.Close()
 			buf, err := io.ReadAll(io.LimitReader(resp.Body, 1000))
 			if err != nil {
 				buf = fmt.Appendf(nil, "(error: %s)", err)

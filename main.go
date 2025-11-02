@@ -44,6 +44,7 @@ type Config struct {
 	SkipModulePaths          []string        `sconf-doc:"Module paths that we won't notify about. E.g. the bare github.com, which would result in too many matches and notification emails."`
 	WebhooksAllowInternalIPs bool            `sconf:"optional" sconf-doc:"Allow delivering webhooks to internal IPs."`
 	DNS                      *DNS            `sconf:"optional" sconf-doc:"Configuration for authoritative DNS(SEC) server."`
+	SubmitLatestURLs         []string        `sconf:"optional" sconf-doc:"List of URLs to HTTP POST the latest sumdb signed tree head to. E.g. https://gossip.api.sourcespotter.com/sum.golang.org, see https://sourcespotter.com/sumdb/."`
 }
 
 type SubmissionIMAP struct {

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -227,6 +228,35 @@ func forwardProcessLatest(latestBuf []byte) error {
 	if ts.RecordsProcessed >= ntree.N {
 		slog.Info("sumdb hasn't moved forward")
 		return nil
+	}
+
+	// The latest sumdb state can be posted to other parties, which can verify what
+	// they've seen in consistent what we've seen.
+	for _, s := range config.SubmitLatestURLs {
+		go func() {
+			slog.Debug("submitting sumdb latest state with http post", "url", s)
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			req, err := http.NewRequestWithContext(ctx, http.MethodPost, s, bytes.NewReader(latestBuf))
+			if err != nil {
+				slog.Error("making http request for posting sumdb latest state", "url", s, "err", err)
+				return
+			}
+			resp, err := http.DefaultClient.Do(req)
+			if err != nil {
+				slog.Error("http transaction for posting sumdb latest state", "url", s, "err", err)
+				return
+			}
+			buf, err := io.ReadAll(io.LimitReader(resp.Body, 1000))
+			if err != nil {
+				buf = fmt.Appendf(nil, "(error: %s)", err)
+			}
+			if resp.StatusCode != http.StatusOK {
+				slog.Error("http transaction for posting sumdb latest state not 200 OK", "url", s, "status", resp.StatusCode, "body", buf)
+				return
+			}
+			slog.Debug("http response body for submitting sumb state", "url", s, "body", buf)
+		}()
 	}
 
 	if err := processModules(ts, ntree, modVersions); err != nil {

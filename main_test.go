@@ -58,17 +58,19 @@ func thttppost(t *testing.T, mux http.Handler, path string, data url.Values, exp
 	}
 }
 
-func thttpget(t *testing.T, mux http.Handler, path string, headers map[string]string, expCode int) {
+func thttpget(t *testing.T, mux http.Handler, path string, headers map[string]string, expCode int) []byte {
 	t.Helper()
 	req := httptest.NewRequest("GET", path, nil)
 	for k, v := range headers {
 		req.Header.Add(k, v)
 	}
 	w := httptest.NewRecorder()
+	w.Body = &bytes.Buffer{}
 	mux.ServeHTTP(w, req)
 	if w.Code != expCode {
 		t.Fatalf("http post to %s: got status %d, expected %d", path, w.Code, expCode)
 	}
+	return w.Body.Bytes()
 }
 
 func thttpsherpa(t *testing.T, mux http.Handler, path string, csrf, session string, params []any, expCode string) {

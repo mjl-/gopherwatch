@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -404,10 +405,12 @@ require (
 	thttpget(t, http.DefaultServeMux, "/viewuser", nil, http.StatusUnauthorized)
 	thttpget(t, http.DefaultServeMux, "/viewuser.csv.zip", nil, http.StatusUnauthorized)
 	thttpget(t, http.DefaultServeMux, "/gopherwatch.db", nil, http.StatusUnauthorized)
+	thttpget(t, http.DefaultServeMux, "/gopherwatch-partial.db", nil, http.StatusUnauthorized)
 	badauth := map[string]string{"Authorization": "Basic " + base64.StdEncoding.EncodeToString([]byte("admin:badpass"))}
 	thttpget(t, http.DefaultServeMux, "/viewuser", badauth, http.StatusUnauthorized)
 	thttpget(t, http.DefaultServeMux, "/viewuser.csv.zip", badauth, http.StatusUnauthorized)
 	thttpget(t, http.DefaultServeMux, "/gopherwatch.db", badauth, http.StatusUnauthorized)
+	thttpget(t, http.DefaultServeMux, "/gopherwatch-partial.db", badauth, http.StatusUnauthorized)
 	// Missing email parameter.
 	okauth := map[string]string{"Authorization": "Basic " + base64.StdEncoding.EncodeToString([]byte("admin:"+config.Admin.Password))}
 	thttpget(t, http.DefaultServeMux, "/viewuser", okauth, http.StatusBadRequest)
@@ -416,7 +419,16 @@ require (
 	thttpget(t, http.DefaultServeMux, "/viewuser?email="+url.QueryEscape("gw@gw.example"), okauth, http.StatusOK)
 	thttpget(t, http.DefaultServeMux, "/viewuser.csv.zip?email="+url.QueryEscape("gw@gw.example"), okauth, http.StatusOK)
 	thttpget(t, http.DefaultServeMux, "/gopherwatch.db", okauth, http.StatusOK)
+	partialDBData := thttpget(t, http.DefaultServeMux, "/gopherwatch-partial.db", okauth, http.StatusOK)
 	thttpget(t, http.DefaultServeMux, "/viewuser?email="+url.QueryEscape("bogus@gw.example"), okauth, http.StatusBadRequest)
+
+	// Check we can load a gopherwatch-partial.db.
+	err = os.WriteFile("testdata/tmp/gopherwatch-partial.db", partialDBData, 0o600)
+	tcheckf(t, err, "write partial db dump")
+	restoreDB, err := bstore.Open(t.Context(), "testdata/tmp/gopherwatch-partial.db", nil, dbtypes...)
+	tcheckf(t, err, "open partial db")
+	err = restoreDB.Close()
+	tcheckf(t, err, "close restored db")
 
 	// Now with recent modules fetched from sumdb.
 	api.Recents(ctxbg)

@@ -11,11 +11,14 @@ import (
 	"flag"
 	"fmt"
 	htmltemplate "html/template"
+	"io"
 	"log/slog"
 	"net"
 	"net/http"
 	"os"
+	"path/filepath"
 	"runtime/debug"
+	"slices"
 	"sort"
 	"strings"
 	texttemplate "text/template"
@@ -32,6 +35,8 @@ import (
 	"github.com/mjl-/sherpaprom"
 )
 
+// Types used to open the database. When changing, also update creating the partial
+// database backup file "gopherwatch-partial.db".
 var dbtypes = []any{TreeState{}, User{}, UserLog{}, Subscription{}, ModuleUpdate{}, Message{}, ModuleVersion{}, HookConfig{}, Hook{}, HookResult{}}
 
 // All users, subscriptions, updates and sumdb state are in the database.
@@ -733,7 +738,134 @@ func serveAdmin(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			logErrorx("dumping database", err)
 		}
+
+	case "/gopherwatch-partial.db":
+		// Like gopherwatch.db, but only includes the last 1000 recent module version
+		// encountered. To keep the dumps much smaller. This does include all user data,
+		// and is a database that can be used to restore after data loss or a database
+		// corruption.
+
+		tmpdir, err := os.MkdirTemp("", "gopherwatch-recent-db")
+		if err != nil {
+			httpErrorf(w, r, http.StatusInternalServerError, "creating temp dir for db dump")
+			return
+		}
+		defer func() {
+			err := os.RemoveAll(tmpdir)
+			logCheck(err, "removing temp dir after db dump")
+		}()
+
+		var f *os.File
+		defer func() {
+			if f != nil {
+				err := f.Close()
+				logCheck(err, "close temp db file")
+			}
+		}()
+
+		err = database.Read(r.Context(), func(srcTx *bstore.Tx) error {
+			// We make a new database, and insert all records we want. In the right order for
+			// foreign key constraints.
+
+			p := filepath.Join(tmpdir, "gopherwatch-partial.db")
+			tmpdb, err := bstore.Open(r.Context(), p, nil, dbtypes...)
+			if err != nil {
+				return fmt.Errorf("open temp db: %w", err)
+			}
+			defer func() {
+				if tmpdb != nil {
+					err := tmpdb.Close()
+					logCheck(err, "closing temp db after error")
+				}
+			}()
+			if err = tmpdb.HintAppend(true, ModuleVersion{}); err != nil {
+				return fmt.Errorf("append-only hint: %w", err)
+			}
+
+			err = tmpdb.Write(r.Context(), func(dstTx *bstore.Tx) error {
+				err = copyRecords[TreeState](dstTx, srcTx)
+				if err == nil {
+					err = copyRecords[User](dstTx, srcTx)
+				}
+				if err == nil {
+					err = copyRecords[UserLog](dstTx, srcTx)
+				}
+				if err == nil {
+					err = copyRecords[HookConfig](dstTx, srcTx)
+				}
+				if err == nil {
+					err = copyRecords[Hook](dstTx, srcTx)
+				}
+				if err == nil {
+					err = copyRecords[HookResult](dstTx, srcTx)
+				}
+				if err == nil {
+					err = copyRecords[Subscription](dstTx, srcTx)
+				}
+				if err == nil {
+					err = copyRecords[ModuleUpdate](dstTx, srcTx)
+				}
+				if err == nil {
+					err = copyRecords[Message](dstTx, srcTx)
+				}
+				if err != nil {
+					return err
+				}
+
+				modVersions, err := bstore.QueryTx[ModuleVersion](srcTx).SortDesc("ID").Limit(1000).List()
+				if err != nil {
+					return fmt.Errorf("querying ModuleVersions from source: %w", err)
+				}
+				for _, e := range slices.Backward(modVersions) {
+					if err := dstTx.Insert(&e); err != nil {
+						return fmt.Errorf("insert ModuleVersions in destination: %w", err)
+					}
+				}
+
+				return nil
+			})
+			if err != nil {
+				return fmt.Errorf("copy records to temp db: %w", err)
+			}
+
+			err = tmpdb.Close()
+			tmpdb = nil
+			if err != nil {
+				return fmt.Errorf("closing temp db: %w", err)
+			}
+
+			f, err = os.Open(p)
+			if err != nil {
+				return fmt.Errorf("open temp db file: %w", err)
+			}
+
+			return nil
+		})
+		if err != nil {
+			httpErrorf(w, r, http.StatusInternalServerError, "creating db dump: %s", err)
+			return
+		}
+
+		h := w.Header()
+		h.Set("Content-Type", "application/octet-stream")
+		h.Set("Cache-Control", "no-cache, max-age=0")
+		h.Set("Content-Disposition", `attachment; filename="gopherwatch.db"`)
+		io.Copy(w, f)
+
 	default:
 		http.NotFound(w, r)
 	}
+}
+
+func copyRecords[T any](dstTx, srcTx *bstore.Tx) error {
+	for e, err := range bstore.QueryTx[T](srcTx).All() {
+		if err != nil {
+			return fmt.Errorf("query records for %T from source: %w", e, err)
+		}
+
+		if err := dstTx.Insert(&e); err != nil {
+			return fmt.Errorf("insert records for %T in destination: %w", e, err)
+		}
+	}
+	return nil
 }

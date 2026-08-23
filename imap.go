@@ -123,17 +123,14 @@ func imapWatch() (rerr error) {
 
 	// Keep executing an IDLE command. It returns when something happened (e.g. message
 	// delivered). We'll then process it and wait for the next event.
-	for {
-		if err := imapWait(imapconn); err != nil {
-			return fmt.Errorf("waiting for event from idle: %v", err)
-		}
-	}
+	err = imapWaitProcess(imapconn)
+	return fmt.Errorf("waiting for event from idle and process: %v", err)
 }
 
-// Wait for an "exists" response from idle. Other untagged responses are
-// ignored and we continue idling. When we see an "exists", we process it on a
+// Wait for an "exists" response from idle and process. Other untagged responses
+// are ignored and we continue idling. When we see an "exists", we process it on a
 // new temporary connection.
-func imapWait(imapconn *imapclient.Conn) error {
+func imapWaitProcess(imapconn *imapclient.Conn) error {
 	if err := imapconn.Commandf("", "idle"); err != nil {
 		return fmt.Errorf("writing idle command: %v", err)
 	}

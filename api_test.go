@@ -27,17 +27,17 @@ func (w *httpResponse) Write(buf []byte) (int, error) { return len(buf), nil }
 func (w *httpResponse) WriteHeader(statusCode int)    {}
 
 func TestAPI(t *testing.T) {
-	tresetTree()
+	tresetTree(t.Context())
 
 	api := API{}
 
-	api.Home(ctxbg)
-	api.Recents(ctxbg)
+	api.Home(t.Context())
+	api.Recents(t.Context())
 
 	req := http.Request{Header: http.Header{}, RemoteAddr: "127.0.0.1:1234"} // For rate limiter.
 	resp := httpResponse{http.Header{}}                                      // For capturing cookies to use in next call.
 	reqInfo := requestInfo{"", 0, &resp, &req}
-	xctx := context.WithValue(ctxbg, requestInfoCtxKey, reqInfo)
+	xctx := context.WithValue(t.Context(), requestInfoCtxKey, reqInfo)
 	propagateCookies := func() {
 		for _, cs := range resp.header.Values("Set-Cookie") {
 			c, err := http.ParseSetCookie(cs)
@@ -121,7 +121,7 @@ func TestAPI(t *testing.T) {
 	// todo: this only asks us to clear cookies, which we don't. we need to check this against the api handler auth code.
 
 	reqInfo = requestInfo{user.Email, user.ID, &resp, &req}
-	ctx := context.WithValue(ctxbg, requestInfoCtxKey, reqInfo)
+	ctx := context.WithValue(t.Context(), requestInfoCtxKey, reqInfo)
 
 	// Overview page
 	overview := api.Overview(ctx)
@@ -243,7 +243,7 @@ require (
 	var lastUpdateID int64
 	updates := func() []ModuleUpdate {
 		t.Helper()
-		l, err := bstore.QueryDB[ModuleUpdate](ctxbg, database).FilterGreater("ID", lastUpdateID).SortAsc("ID").List()
+		l, err := bstore.QueryDB[ModuleUpdate](t.Context(), database).FilterGreater("ID", lastUpdateID).SortAsc("ID").List()
 		tcheckf(t, err, "list registered module updates")
 		if len(l) > 0 {
 			lastUpdateID = l[len(l)-1].ID
@@ -258,10 +258,10 @@ require (
 	tcompare(t, len(up), 0)
 
 	// Add record to sumdb, move tlog forward, and check user has received a notification.
-	id, err := sumsrv.Lookup(ctxbg, module.Version{Path: "vcs.localhost/testrepo", Version: "v0.0.1"})
+	id, err := sumsrv.Lookup(t.Context(), module.Version{Path: "vcs.localhost/testrepo", Version: "v0.0.1"})
 	tcheckf(t, err, "add module to sumdb")
 	tcompare(t, id, int64(0))
-	id, err = sumsrv.Lookup(ctxbg, module.Version{Path: "vcs.localhost/testrepo", Version: "v0.0.1"})
+	id, err = sumsrv.Lookup(t.Context(), module.Version{Path: "vcs.localhost/testrepo", Version: "v0.0.1"})
 	tcheckf(t, err, "fetch existing module from sumdb")
 	tcompare(t, id, int64(0))
 
@@ -270,7 +270,7 @@ require (
 	up = updates()
 	tcompare(t, len(up), 1+1) // Two subscriptions
 
-	userUpdates, prevVersions, err := gatherNotifyUpdates(ctxbg)
+	userUpdates, prevVersions, err := gatherNotifyUpdates(t.Context())
 	tcheckf(t, err, "gather notify modules")
 	tcompare(t, len(userUpdates), 1)
 	tcompare(t, prevVersions, map[int64]map[string]string{})
@@ -279,15 +279,15 @@ require (
 	tneedmail(t, "1 module with 1 new version")
 
 	// Add a new version. Previous version should be found.
-	_, err = sumsrv.Lookup(ctxbg, module.Version{Path: "vcs.localhost/testrepo", Version: "v0.0.3"})
+	_, err = sumsrv.Lookup(t.Context(), module.Version{Path: "vcs.localhost/testrepo", Version: "v0.0.3"})
 	tcheckf(t, err, "add module to sumdb")
-	_, err = sumsrv.Lookup(ctxbg, module.Version{Path: "vcs.localhost/testrepo", Version: "v0.0.2"})
+	_, err = sumsrv.Lookup(t.Context(), module.Version{Path: "vcs.localhost/testrepo", Version: "v0.0.2"})
 	tcheckf(t, err, "add module to sumdb")
 	err = stepTlog()
 	tcheckf(t, err, "moving tlog forward")
 	up = updates()
 	tcompare(t, len(up), 2*2) // Two subscriptions, each two updates.
-	userUpdates, prevVersions, err = gatherNotifyUpdates(ctxbg)
+	userUpdates, prevVersions, err = gatherNotifyUpdates(t.Context())
 	tcheckf(t, err, "gather notify modules")
 	tcompare(t, len(userUpdates), 1)
 	tcompare(t, len(userUpdates[user.ID]), 2) // Two mail subscriptions.
@@ -297,21 +297,21 @@ require (
 	nmsub.OlderVersions = true
 	nmsub.Prerelease = true
 	api.SubscriptionSave(ctx, nmsub)
-	_, err = sumsrv.Lookup(ctxbg, module.Version{Path: "golang.org/toolchain", Version: "v0.0.1-go1.21.1.linux-amd64"})
+	_, err = sumsrv.Lookup(t.Context(), module.Version{Path: "golang.org/toolchain", Version: "v0.0.1-go1.21.1.linux-amd64"})
 	tcheckf(t, err, "add module to sumdb")
 	api.Forward(xctx) // Forward through index.
 	up = updates()
 	tcompare(t, len(up), 1+0)
 	mailtx := tneedmail(t, "2 modules with 3 new versions")
 
-	_, err = sumsrv.Lookup(ctxbg, module.Version{Path: "golang.org/toolchain", Version: "v0.0.1-go1.21.1.openbsd-amd64"})
+	_, err = sumsrv.Lookup(t.Context(), module.Version{Path: "golang.org/toolchain", Version: "v0.0.1-go1.21.1.openbsd-amd64"})
 	tcheckf(t, err, "add module to sumdb")
 	err = stepTlog()
 	tcheckf(t, err, "moving tlog after adding record")
 	up = updates()
 	tcompare(t, len(up), 1)
 
-	_, err = sumsrv.Lookup(ctxbg, module.Version{Path: "golang.org/toolchain", Version: "v0.0.1-go1.21.2.openbsd-amd64"})
+	_, err = sumsrv.Lookup(t.Context(), module.Version{Path: "golang.org/toolchain", Version: "v0.0.1-go1.21.2.openbsd-amd64"})
 	tcheckf(t, err, "add module to sumdb")
 	err = stepTlog()
 	tcheckf(t, err, "moving tlog after adding record")
@@ -329,7 +329,7 @@ require (
 		sub.Module = xsub.Module
 		api.SubscriptionSave(ctx, sub)
 
-		_, err = sumsrv.Lookup(ctxbg, module.Version{Path: path, Version: version})
+		_, err = sumsrv.Lookup(t.Context(), module.Version{Path: path, Version: version})
 		tcheckf(t, err, "add module to sumdb")
 		err = stepTlog()
 		tcheckf(t, err, "moving tlog after adding record")
@@ -431,12 +431,12 @@ require (
 	tcheckf(t, err, "close restored db")
 
 	// Now with recent modules fetched from sumdb.
-	api.Recents(ctxbg)
+	api.Recents(t.Context())
 	api.Overview(ctx)
 
 	// Cause removal of module versions, checking that all related records are removed (eg no foreign key constraints left).
 	config.ModuleVersionHistorySize = 2
-	_, err = sumsrv.Lookup(ctxbg, module.Version{Path: "golang.org/toolchain", Version: "v0.0.1-go1.21.3.openbsd-amd64"})
+	_, err = sumsrv.Lookup(t.Context(), module.Version{Path: "golang.org/toolchain", Version: "v0.0.1-go1.21.3.openbsd-amd64"})
 	tcheckf(t, err, "add module to sumdb")
 	err = stepTlog()
 	tcheckf(t, err, "moving tlog after adding record")
@@ -497,7 +497,7 @@ require (
 	tcheckf(t, err, "get user for resubscribing")
 	user.MetaUnsubscribed = false
 	user.UpdatesUnsubscribed = false
-	err = database.Update(ctxbg, &user)
+	err = database.Update(t.Context(), &user)
 	tcheckf(t, err, "resubscribe user")
 	xsub.Module = "other.localhost/fail"
 	checkMatch(xsub, "other.localhost/fail", "v0.1.0", true)

@@ -38,7 +38,7 @@ func TestSignup(t *testing.T) {
 			tneedmail0(t, "re: signup for "+config.ServiceName)
 		}
 
-		user, err := bstore.QueryDB[User](ctxbg, database).Get()
+		user, err := bstore.QueryDB[User](t.Context(), database).Get()
 		if !expUser {
 			tcompare(t, err, bstore.ErrAbsent)
 			return
@@ -47,7 +47,7 @@ func TestSignup(t *testing.T) {
 		req := http.Request{Header: http.Header{}, RemoteAddr: "127.0.0.1:1234"} // For rate limiter.
 		resp := httpResponse{http.Header{}}                                      // For capturing cookies to use in next call.
 		reqInfo := requestInfo{user.Email, user.ID, &resp, &req}
-		ctx := context.WithValue(ctxbg, requestInfoCtxKey, reqInfo)
+		ctx := context.WithValue(t.Context(), requestInfoCtxKey, reqInfo)
 		api := API{}
 		api.UserRemove(ctx)
 	}

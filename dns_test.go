@@ -17,7 +17,7 @@ import (
 )
 
 func TestDNS(t *testing.T) {
-	tresetTree()
+	tresetTree(t.Context())
 
 	modvers := [][2]string{
 		{"github.com/mjl-/mox", "v0.0.9"},
@@ -44,7 +44,7 @@ func TestDNS(t *testing.T) {
 		{"golang.org/toolchain", "v0.0.1-go1.22.7.windows-arm64"},
 	}
 	for _, pv := range modvers {
-		_, err := sumsrv.Lookup(ctxbg, module.Version{Path: pv[0], Version: pv[1]})
+		_, err := sumsrv.Lookup(t.Context(), module.Version{Path: pv[0], Version: pv[1]})
 		tcheckf(t, err, "add module to sumdb")
 	}
 	tm := fmt.Sprintf("%x", time.Now().Unix()) // todo: wait until start of second

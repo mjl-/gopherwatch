@@ -31,8 +31,6 @@ import (
 
 // todo: test rate limits, imap/submission, more backing off, webhook delivery failure handling and HookCancel/HookKick api calls.
 
-var ctxbg = context.Background()
-
 func tcheckf(t *testing.T, err error, format string, args ...any) {
 	if err != nil {
 		t.Helper()
@@ -189,7 +187,7 @@ func gosumOK(path, version string) ([]byte, error) {
 
 var gosum = gosumOK
 
-func tresetTree() {
+func tresetTree(ctx context.Context) {
 	if sumhttpsrv != nil {
 		sumhttpsrv.Close()
 	}
@@ -202,7 +200,7 @@ func tresetTree() {
 	sumhttpsrv = httptest.NewServer(sumdb.NewServer(sumsrv))
 	config.SumDB.BaseURL = sumhttpsrv.URL
 
-	if _, err := bstore.QueryDB[ModuleVersion](ctxbg, database).Delete(); err != nil {
+	if _, err := bstore.QueryDB[ModuleVersion](ctx, database).Delete(); err != nil {
 		panic(fmt.Sprintf("delete module versions: %v", err))
 	}
 
@@ -392,7 +390,7 @@ func TestMain(t *testing.M) {
 	servePrep(dbpath)
 
 	resetTree = true // For each test that inits the tlog.
-	tresetTree()
+	tresetTree(context.Background())
 
 	os.Exit(t.Run())
 }

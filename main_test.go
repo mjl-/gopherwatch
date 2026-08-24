@@ -322,6 +322,9 @@ func TestMain(t *testing.M) {
 	log.SetFlags(0)
 	loglevel.Set(slog.LevelDebug)
 
+	acceptCtx = context.Background()
+	shutdownCtx = context.Background()
+
 	dataDir = "testdata/tmp/data"
 	os.RemoveAll(dataDir)
 

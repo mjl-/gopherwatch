@@ -40,6 +40,10 @@ func send(ctx context.Context, meta bool, user User, origMessageID, subject, tex
 		return sendID, rerr
 	}
 
+	if config.SubmissionIMAP == nil {
+		return "", fmt.Errorf("no mechanism for outgoing email configured")
+	}
+
 	// Compose ourselves and submit over SMTP.
 	mailFrom, sendID, msg, eightbit, smtputf8, err := compose(meta, user, origMessageID, subject, text, html)
 	if err != nil {

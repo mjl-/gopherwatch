@@ -433,15 +433,15 @@ func processMessage(imapconn *imapclient.Conn, uid uint32) (problem string, rerr
 
 		// Message seems legit. Lookup the user. If no account yet, we'll try to create it.
 		// If user exists, we'll send a password reset. Like the regular signup form.
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		defer cancel()
-		user, m, subject, text, html, err := signup(ctx, fromAddr, false)
+		user, m, subject, text, html, err := signup(shutdownCtx, fromAddr, false)
 		if err != nil {
 			return fmt.Sprintf("registering signup for user %q: %v", fromAddr.String(), err), nil
 		} else if user.ID == 0 {
 			// Should not happen for email-based signup.
 			return "missing user id after signup", nil
 		}
+
+		ctx := context.Background()
 
 		// Check if we can send. If not, abort.
 		for i := 0; !sendCan(); i++ {
@@ -459,16 +459,16 @@ func processMessage(imapconn *imapclient.Conn, uid uint32) (problem string, rerr
 
 		sendTake()
 
-		sendID, err := send(context.TODO(), true, user, env.MessageID, subject, text, html)
+		sendID, err := send(ctx, true, user, env.MessageID, subject, text, html)
 		if err != nil {
 			logErrorx("submission for signup/passwordreset", err, "userid", user.ID)
-			if err := database.Delete(context.Background(), &m); err != nil {
+			if err := database.Delete(ctx, &m); err != nil {
 				logErrorx("removing metamessage added before submission error", err)
 			}
 			return fmt.Sprintf("sending signup/passwordreset for message %q: %v", user.Email, err), nil
 		}
 		m.SendID = sendID
-		if err := database.Update(context.TODO(), &m); err != nil {
+		if err := database.Update(ctx, &m); err != nil {
 			logErrorx("setting sendid for sent message after submitting", err)
 			return fmt.Sprintf("setting sendid for sent message after submitting: %v", err), nil
 		}
@@ -619,7 +619,7 @@ func processDSN(uid uint32, sendID string, dsnmsg *dsn.Message, dsnData string) 
 
 	log.Info("processing dsn")
 
-	err := database.Write(context.Background(), func(tx *bstore.Tx) error {
+	err := database.Write(shutdownCtx, func(tx *bstore.Tx) error {
 		var known bool
 		var userID int64
 		m, err := bstore.QueryTx[Message](tx).FilterNonzero(Message{SendID: sendID}).Get()

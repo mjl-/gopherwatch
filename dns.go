@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"crypto/ecdsa"
 	"crypto/ed25519"
 	"crypto/elliptic"
@@ -426,6 +425,7 @@ var edns0OptionCodeToString = map[uint16]string{
 // requestor. If the response message is the zero Msg, a tcp connection must be
 // aborted because the protocol is botched.
 func process(log *slog.Logger, buf []byte, udp bool, remaddr net.Addr) (respmsg dns.Msg, dropconn, droppkt bool, rerr error) {
+	ctx := shutdownCtx
 	metricDNSRequests.Inc()
 
 	// Common mistakes in DNS handling and about handling unrecognized
@@ -441,9 +441,9 @@ func process(log *slog.Logger, buf []byte, udp bool, remaddr net.Addr) (respmsg 
 
 	log = log.With("tid", dnsTid.Add(1), "dnsmsgid", inmsg.Id)
 
-	log.Log(context.Background(), LevelTrace, "incoming request", "size", len(buf), "addr", remaddr, "msg", inmsg)
+	log.Log(ctx, LevelTrace, "incoming request", "size", len(buf), "addr", remaddr, "msg", inmsg)
 	defer func() {
-		log.Log(context.Background(), LevelTrace, "outgoing response", "rerr", rerr, "respmsg", respmsg)
+		log.Log(ctx, LevelTrace, "outgoing response", "rerr", rerr, "respmsg", respmsg)
 	}()
 
 	if inmsg.Response {
@@ -559,7 +559,7 @@ func process(log *slog.Logger, buf []byte, udp bool, remaddr net.Addr) (respmsg 
 			}
 			// Set zone serial to number of records in our log.
 			state := TreeState{ID: 1}
-			if err := database.Get(context.Background(), &state); err != nil {
+			if err := database.Get(ctx, &state); err != nil {
 				respmsg = response(inmsg, dns.RcodeServerFailure)
 				rerr = fmt.Errorf("get serial from state for soa: %v", err)
 				return
@@ -640,7 +640,7 @@ func process(log *slog.Logger, buf []byte, udp bool, remaddr net.Addr) (respmsg 
 		case dns.TypeSOA:
 			rsoa := zoneSOA
 			state := TreeState{ID: 1}
-			if err := database.Get(context.Background(), &state); err != nil {
+			if err := database.Get(ctx, &state); err != nil {
 				return response(inmsg, dns.RcodeServerFailure), false, false, fmt.Errorf("get serial from state for soa: %v", err)
 			}
 			rsoa.Serial = uint32(state.RecordsProcessed)
@@ -676,7 +676,7 @@ func process(log *slog.Logger, buf []byte, udp bool, remaddr net.Addr) (respmsg 
 			}
 
 			// Handle specially.
-			dbq := bstore.QueryDB[ModuleVersion](context.Background(), database)
+			dbq := bstore.QueryDB[ModuleVersion](ctx, database)
 			mvl, err := dbq.FilterNonzero(ModuleVersion{Module: "golang.org/toolchain"}).List()
 			if err != nil {
 				return response(inmsg, dns.RcodeServerFailure), false, false, fmt.Errorf("lookup golang.org/toolchain in db: %v", err)
@@ -703,7 +703,7 @@ func process(log *slog.Logger, buf []byte, udp bool, remaddr net.Addr) (respmsg 
 		var path string
 		var versions []string
 		defer func() {
-			log.Log(context.Background(), LevelTrace, "dns module result", "qtype", dns.Type(q.Qtype), "qname", qname, "sname", sname, "path", path, "versions", versions, "rerr", rerr)
+			log.Log(ctx, LevelTrace, "dns module result", "qtype", dns.Type(q.Qtype), "qname", qname, "sname", sname, "path", path, "versions", versions, "rerr", rerr)
 		}()
 
 		var err error
@@ -717,7 +717,7 @@ func process(log *slog.Logger, buf []byte, udp bool, remaddr net.Addr) (respmsg 
 		// and taking the first: v0.0.9 would be "newer" than v0.0.10.
 		majorVersions := map[int]string{}
 		majorFound := map[int]time.Time{}
-		dbq := bstore.QueryDB[ModuleVersion](context.Background(), database)
+		dbq := bstore.QueryDB[ModuleVersion](ctx, database)
 		err = dbq.FilterNonzero(ModuleVersion{Module: path}).ForEach(func(mv ModuleVersion) error {
 			// We only return non-prerelease versions.
 			if semver.Prerelease(mv.Version) != "" {
@@ -774,7 +774,7 @@ func process(log *slog.Logger, buf []byte, udp bool, remaddr net.Addr) (respmsg 
 
 		// Look for next path. If the requested path is a delimited prefix, we return
 		// nodata instead of nxdomain as the requestor may be asking for a partial name.
-		dbq = bstore.QueryDB[ModuleVersion](context.Background(), database)
+		dbq = bstore.QueryDB[ModuleVersion](ctx, database)
 		mv, err := dbq.FilterGreater("Module", path).SortAsc("Module").Limit(1).Get()
 		if err == bstore.ErrAbsent || err == nil && !strings.HasPrefix(mv.Module, path+"/") {
 			return response(inmsg, dns.RcodeNameError), false, false, fmt.Errorf("module %q does not exist", path)

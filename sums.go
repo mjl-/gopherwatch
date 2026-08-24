@@ -235,7 +235,7 @@ func forwardProcessLatest(latestBuf []byte) error {
 	for _, s := range config.SubmitLatestURLs {
 		go func() {
 			slog.Debug("submitting sumdb latest state with http post", "url", s)
-			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			ctx, cancel := context.WithTimeout(shutdownCtx, 10*time.Second)
 			defer cancel()
 			req, err := http.NewRequestWithContext(ctx, http.MethodPost, s, bytes.NewReader(latestBuf))
 			if err != nil {
@@ -274,7 +274,7 @@ func latestModules(latest []byte) (TreeState, tlog.Tree, []module.Version, error
 	}
 
 	ts := TreeState{ID: 1}
-	if err := database.Get(context.Background(), &ts); err != nil {
+	if err := database.Get(shutdownCtx, &ts); err != nil {
 		return ts, tlog.Tree{}, nil, fmt.Errorf("get treestate from database: %v", err)
 	}
 
@@ -365,7 +365,7 @@ func processModules(ts TreeState, ntree tlog.Tree, modversions []module.Version)
 	var nprocessed int64
 	var nupdates int
 	var havehooks bool
-	err := database.Write(context.Background(), func(tx *bstore.Tx) error {
+	err := database.Write(shutdownCtx, func(tx *bstore.Tx) error {
 		nprocessed = ntree.N - ts.RecordsProcessed
 		if nprocessed != int64(len(modversions)) {
 			return fmt.Errorf("internal error, nprocessed %d, len modversions %d", nprocessed, len(modversions))

@@ -79,7 +79,7 @@ func deliverHooks() {
 	timer := time.NewTimer(0)
 	for {
 		// Fetch time of first next hook to process.
-		qn := bstore.QueryDB[Hook](context.Background(), database)
+		qn := bstore.QueryDB[Hook](shutdownCtx, database)
 		qn.FilterEqual("Done", false)
 		qn.FilterLessEqual("NextAttempt", time.Now())
 		qn.SortAsc("NextAttempt")
@@ -88,8 +88,12 @@ func deliverHooks() {
 		if err == bstore.ErrAbsent {
 			// No hook to handle, wait for something to happen.
 			slog.Debug("no hook to schedule, waiting for activity")
-			<-hookactivity
-			continue
+			select {
+			case <-hookactivity:
+				continue
+			case <-acceptCtx.Done():
+				return
+			}
 		}
 		if err != nil {
 			logFatalx("looking up next hook to deliver", err)
@@ -105,6 +109,8 @@ func deliverHooks() {
 			continue
 		case <-timer.C:
 			// Time to go!
+		case <-acceptCtx.Done():
+			return
 		}
 
 		// Retrieve all hooks we might be able to start.
@@ -113,7 +119,7 @@ func deliverHooks() {
 }
 
 func deliverHooksOnce() {
-	qw := bstore.QueryDB[Hook](context.Background(), database)
+	qw := bstore.QueryDB[Hook](shutdownCtx, database)
 	qw.FilterEqual("Done", false)
 	qw.FilterLessEqual("NextAttempt", time.Now())
 	qw.SortAsc("NextAttempt")
@@ -157,7 +163,7 @@ func prepareDeliverHook(h Hook) (rerr error) {
 	var modup ModuleUpdate
 	var hc HookConfig
 	var nodeliver bool
-	err := database.Write(context.Background(), func(tx *bstore.Tx) error {
+	err := database.Write(shutdownCtx, func(tx *bstore.Tx) error {
 		// Get fresh hook again, it could have vanished in the mean time.
 		if err := tx.Get(&h); err != nil {
 			return err
@@ -328,7 +334,7 @@ func deliverHook(h Hook, hc HookConfig, modup ModuleUpdate) (rerr error) {
 		}
 	}()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(shutdownCtx, 30*time.Second)
 	defer cancel()
 
 	// todo: also send sum? parsed version? last known version we had? more fields?

@@ -82,9 +82,7 @@ func gatherNotifyUpdates(ctx context.Context) (map[int64][]ModuleUpdate, map[int
 // Send a message to all users with updates we haven't notified about. Taking
 // backoff and the interval into consideration.
 func notify() {
-	ctx := context.Background()
-
-	userUpdates, prevVersions, err := gatherNotifyUpdates(ctx)
+	userUpdates, prevVersions, err := gatherNotifyUpdates(shutdownCtx)
 	if err != nil {
 		logErrorx("gathering module updates to notify about", err)
 		return
@@ -105,7 +103,7 @@ func notify() {
 		// get message flow again after a backoff.
 		var u User
 		var backoff bool
-		err := database.Write(ctx, func(tx *bstore.Tx) error {
+		err := database.Write(shutdownCtx, func(tx *bstore.Tx) error {
 			var err error
 			u, backoff, err = checkCanSend(tx, userID)
 			return err
@@ -139,7 +137,7 @@ func notify() {
 		// We mark the message as sent before actually sending. Otherwise, we may end up
 		// sending a user many messages if we encounter an error while marking as sent.
 		var m Message
-		err = database.Write(context.Background(), func(tx *bstore.Tx) error {
+		err = database.Write(shutdownCtx, func(tx *bstore.Tx) error {
 			m = Message{
 				UserID: u.ID,
 				Meta:   false,

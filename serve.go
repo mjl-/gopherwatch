@@ -16,11 +16,14 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"runtime/debug"
 	"slices"
 	"sort"
 	"strings"
+	"sync"
+	"syscall"
 	texttemplate "text/template"
 	"time"
 
@@ -125,6 +128,9 @@ var publicMux = http.NewServeMux()
 var metricsMux = http.NewServeMux()
 var webhookMux *http.ServeMux
 
+var acceptCtx context.Context   // Canceled when shutdown is initiated, checked by various goroutines before starting new work.
+var shutdownCtx context.Context // Canceled after gracefully stopping http servers, to really stop any requests/activity.
+
 func serve(args []string) {
 	fs := flag.NewFlagSet("serve", flag.ExitOnError)
 	var configPath string
@@ -167,6 +173,11 @@ func serve(args []string) {
 
 	// Start delivery of webhooks.
 	go deliverHooks()
+
+	notifyCtx, notifyCancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	var acceptCancel, shutdownCancel func()
+	acceptCtx, acceptCancel = context.WithCancel(context.Background())
+	shutdownCtx, shutdownCancel = context.WithCancel(context.Background())
 
 	slog.Warn("starting gopherwatch", "version", version, "listenaddr", listenAddr, "adminaddr", adminAddr, "metricsaddr", metricsAddr, "webhookaddr", webhookAddr, "dnsudpaddr", dnsudpaddr, "dnstcpaddr", dnstcpaddr, "dnstlsaddr", dnstlsaddr)
 
@@ -227,22 +238,89 @@ func serve(args []string) {
 		}
 	}
 
+	var servers []*http.Server
+
 	if metricsAddr != "" {
 		go func() {
-			logFatalx("metrics listener", http.ListenAndServe(metricsAddr, metricsMux))
+			s := &http.Server{
+				Addr:              metricsAddr,
+				Handler:           metricsMux,
+				BaseContext:       func(_ net.Listener) context.Context { return shutdownCtx },
+				ReadHeaderTimeout: 30 * time.Second,
+				IdleTimeout:       65 * time.Second,
+			}
+			servers = append(servers, s)
+			if err := s.ListenAndServe(); err != http.ErrServerClosed {
+				logFatalx("metrics listener", err)
+			}
 		}()
 	}
 	if adminAddr != "" {
 		go func() {
-			logFatalx("admin listener", http.ListenAndServe(adminAddr, nil))
+			s := &http.Server{
+				Addr:              adminAddr,
+				Handler:           nil,
+				BaseContext:       func(_ net.Listener) context.Context { return shutdownCtx },
+				ReadHeaderTimeout: 30 * time.Second,
+				IdleTimeout:       65 * time.Second,
+			}
+			servers = append(servers, s)
+			if err := s.ListenAndServe(); err != http.ErrServerClosed {
+				logFatalx("admin listener", err)
+			}
 		}()
 	}
 	if webhookMux != nil && webhookAddr != "" {
 		go func() {
-			logFatalx("webhook listener", http.ListenAndServe(webhookAddr, webhookMux))
+			s := &http.Server{
+				Addr:              webhookAddr,
+				Handler:           webhookMux,
+				BaseContext:       func(_ net.Listener) context.Context { return shutdownCtx },
+				ReadHeaderTimeout: 30 * time.Second,
+				IdleTimeout:       65 * time.Second,
+			}
+			servers = append(servers, s)
+			if err := s.ListenAndServe(); err != http.ErrServerClosed {
+				logFatalx("webhook listener", err)
+			}
 		}()
 	}
-	logFatalx("public listener", http.ListenAndServe(listenAddr, publicMux))
+	if listenAddr != "" {
+		go func() {
+			s := &http.Server{
+				Addr:              listenAddr,
+				Handler:           publicMux,
+				BaseContext:       func(_ net.Listener) context.Context { return shutdownCtx },
+				ReadHeaderTimeout: 30 * time.Second,
+				IdleTimeout:       65 * time.Second,
+			}
+			servers = append(servers, s)
+			if err := s.ListenAndServe(); err != http.ErrServerClosed {
+				logFatalx("public listener", err)
+			}
+		}()
+	}
+
+	<-notifyCtx.Done()
+	slog.Info("signal received, shutting down...")
+	acceptCancel()
+	t0 := time.Now()
+	notifyCancel() // Allow another ctrl-c to stop.
+	stopCtx, stopCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	var wg sync.WaitGroup
+	for _, s := range servers {
+		wg.Go(func() {
+			err := s.Shutdown(stopCtx)
+			if err != nil {
+				slog.Error("shutting down server", "err", err, "addr", s.Addr)
+			}
+		})
+	}
+	wg.Wait()
+	stopCancel()
+	shutdownCancel()
+	slog.Info("graceful shutdown of http servers complete, waiting 1s before existing...", "duration", time.Since(t0))
+	time.Sleep(time.Second)
 }
 
 func servePrep(dbpath string) {
@@ -310,7 +388,7 @@ func servePrep(dbpath string) {
 		// Watch mailbox over IMAP for DSNs and signup messages. uses IMAP IDLE to wait for
 		// incoming messages.
 		go mailWatch()
-	} else {
+	} else if config.Mox != nil {
 		// Register HTTP handler for webhooks.
 		webhookMux = http.NewServeMux()
 		webhookMux.HandleFunc("POST "+config.Mox.Webhook.OutgoingPath, webhookOutgoing)

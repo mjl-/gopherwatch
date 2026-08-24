@@ -36,7 +36,7 @@ type Config struct {
 	ModuleVersionHistorySize int64           `sconf-doc:"Number of most recent modules/versions seen in transparency log to keep in database. If <= 0, all are kept."`
 	SumDB                    SumDB           `sconf-doc:"Transparency log that we are following. The verifier key cannot be changed after initializing the state."`
 	IndexBaseURL             string          `sconf:"optional" sconf-doc:"Base URL of index, e.g. https://index.golang.org. Only used for explicitly trying to forward to the latest, non-cached module added to the transparency log."`
-	SignupAddress            string          `sconf-doc:"Address to which signup emails should be sent."`
+	SignupAddress            string          `sconf:"optional" sconf-doc:"Address to which signup emails should be sent. Required unless SignupEmailDisabled is set."`
 	KeywordPrefix            string          `sconf:"optional" sconf-doc:"Prefix of keywords (or flags/tags) set on incoming messages to indicate whether they have been processed. E.g. 'gopherwatch:'."`
 	SubmissionIMAP           *SubmissionIMAP `sconf:"optional" sconf-doc:"Configuration for sending/receiving email with SMTP submission and IMAP."`
 	Mox                      *Mox            `sconf:"optional" sconf-doc:"Configuration for sending/receiving email with mox webapi."`
@@ -149,6 +149,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, "       gopherwatch gendnskey")
 		fmt.Fprintln(os.Stderr, "       gopherwatch dnslookup {module | \"toolchain\"} [basedomain]")
 		fmt.Fprintln(os.Stderr, "       gopherwatch opendb file.db")
+		fmt.Fprintln(os.Stderr, "       gopherwatch removeuserdata file.db")
 		flag.PrintDefaults()
 		os.Exit(2)
 	}
@@ -260,6 +261,52 @@ func main() {
 			logFatalx("close database: %v", err)
 		}
 
+	case "removeuserdata":
+		// Open the database and remove all user data.
+		if len(args) != 1 {
+			flag.Usage()
+		}
+		opts := bstore.Options{RegisterLogger: logger}
+		db, err := bstore.Open(context.Background(), args[0], &opts, dbtypes...)
+		if err != nil {
+			logFatalx("open database: %v", err)
+		}
+
+		err = db.Write(context.Background(), func(tx *bstore.Tx) error {
+			if _, err := bstore.QueryTx[Message](tx).Delete(); err != nil {
+				return fmt.Errorf("deleting Message: %v", err)
+			}
+			if _, err := bstore.QueryTx[ModuleUpdate](tx).Delete(); err != nil {
+				return fmt.Errorf("deleting ModuleUpdate: %v", err)
+			}
+			if _, err := bstore.QueryTx[Subscription](tx).Delete(); err != nil {
+				return fmt.Errorf("deleting Subscription: %v", err)
+			}
+			if _, err := bstore.QueryTx[HookResult](tx).Delete(); err != nil {
+				return fmt.Errorf("deleting HookResult: %v", err)
+			}
+			if _, err := bstore.QueryTx[Hook](tx).Delete(); err != nil {
+				return fmt.Errorf("deleting Hook: %v", err)
+			}
+			if _, err := bstore.QueryTx[HookConfig](tx).Delete(); err != nil {
+				return fmt.Errorf("deleting HookConfig: %v", err)
+			}
+			if _, err := bstore.QueryTx[UserLog](tx).Delete(); err != nil {
+				return fmt.Errorf("deleting UserLog: %v", err)
+			}
+			if _, err := bstore.QueryTx[User](tx).Delete(); err != nil {
+				return fmt.Errorf("deleting User: %v", err)
+			}
+			return nil
+		})
+		if err != nil {
+			logFatalx("deleting user data", err)
+		}
+
+		if err := db.Close(); err != nil {
+			logFatalx("close database: %v", err)
+		}
+
 	default:
 		fmt.Fprintln(os.Stderr, "unknown subcommand")
 		flag.Usage()
@@ -287,13 +334,13 @@ func parseConfig(filename string) error {
 		return err
 	}
 
-	if _, err := smtp.ParseAddress(config.SignupAddress); err != nil {
-		return fmt.Errorf("parsing signup address %q: %v", config.SignupAddress, err)
+	if !config.SignupEmailDisabled {
+		if _, err := smtp.ParseAddress(config.SignupAddress); err != nil {
+			return fmt.Errorf("parsing signup address %q: %v", config.SignupAddress, err)
+		}
 	}
 
-	if config.SubmissionIMAP == nil && config.Mox == nil {
-		return fmt.Errorf("require either SubmissionIMAP or Mox")
-	} else if config.SubmissionIMAP != nil && config.Mox != nil {
+	if config.SubmissionIMAP != nil && config.Mox != nil {
 		return fmt.Errorf("require either SubmissionIMAP or Mox, not both")
 	} else if config.SubmissionIMAP != nil {
 		config.SubmissionIMAP.Submission.From.ParsedLocalpartBase, err = smtp.ParseLocalpart(config.SubmissionIMAP.Submission.From.LocalpartBase)
@@ -305,7 +352,7 @@ func parseConfig(filename string) error {
 		if err != nil {
 			return fmt.Errorf("parsing dns of submission from domain: %v", err)
 		}
-	} else {
+	} else if config.Mox != nil {
 		_, err := url.Parse(config.Mox.WebAPI.BaseURL)
 		if err != nil {
 			return fmt.Errorf("parsing mox webapi baseurl: %v", err)

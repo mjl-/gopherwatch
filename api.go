@@ -208,7 +208,7 @@ func (API) Signup(ctx context.Context, prepToken string, email string) {
 		return
 	}
 
-	sendctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	sendctx, cancel := context.WithTimeout(shutdownCtx, 15*time.Second)
 	defer cancel()
 
 	// Send the message.
@@ -543,7 +543,7 @@ func (API) RequestPasswordReset(ctx context.Context, prepToken, email string) {
 	}
 	xcheckf(err, "requesting password reset")
 
-	sendctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	sendctx, cancel := context.WithTimeout(shutdownCtx, 15*time.Second)
 	defer cancel()
 
 	subject, text, html, err := composePasswordReset(user, true)

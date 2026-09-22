@@ -15,6 +15,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -259,7 +260,7 @@ func serve(args []string) {
 		go func() {
 			s := &http.Server{
 				Addr:              adminAddr,
-				Handler:           nil,
+				Handler:           nil, // DefaultServeMux
 				BaseContext:       func(_ net.Listener) context.Context { return shutdownCtx },
 				ReadHeaderTimeout: 30 * time.Second,
 				IdleTimeout:       65 * time.Second,
@@ -378,7 +379,6 @@ func servePrep(dbpath string) {
 	publicMux.HandleFunc("GET /preview/{kind}/{format}", serveMailPreview)
 
 	// Prometheus metrics served on a separate port.
-	metricsMux = http.NewServeMux()
 	metricsMux.Handle("/metrics", promhttp.Handler())
 
 	// Admin endpoints served on a separate port. Requires HTTP basic auth from the config file.

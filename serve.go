@@ -125,6 +125,7 @@ func mustParseAPI(api string, buf []byte) (doc sherpadoc.Section) {
 }
 
 var resetTree bool
+var resetID int64
 var publicMux = http.NewServeMux()
 var metricsMux = http.NewServeMux()
 var webhookMux *http.ServeMux
@@ -149,6 +150,7 @@ func serve(args []string) {
 	fs.StringVar(&dbpath, "dbpath", "gopherwatch.db", "database, with users, subscriptions, etc")
 	fs.StringVar(&dataDir, "datadir", "data", "directory with tile cache and where instance notes are read from")
 	fs.BoolVar(&resetTree, "resettree", false, "reset tree state, useful to prevent catching up for a long time after not running local/test instance for a while")
+	fs.Int64Var(&resetID, "resetid", 0, "reset tree state to id, useful for checking handling of specific records")
 	fs.Parse(args)
 	fs.Usage = func() {
 		fmt.Fprintln(os.Stderr, "usage: gopherwatch serve [flags]")
@@ -158,6 +160,10 @@ func serve(args []string) {
 	args = fs.Args()
 	if len(args) != 0 {
 		fs.Usage()
+	}
+	if resetTree && resetID != 0 {
+		fmt.Fprintln(os.Stderr, "cannot have both -resettree and -resetid")
+		os.Exit(2)
 	}
 
 	if err := parseConfig(configPath); err != nil {

@@ -113,7 +113,7 @@ func openTlog() {
 	ts := TreeState{ID: 1}
 	if err := database.Get(context.Background(), &ts); err != nil && err != bstore.ErrAbsent {
 		logFatalx("get initial treestate", err)
-	} else if resetTree || err == bstore.ErrAbsent {
+	} else if resetTree || resetID > 0 || err == bstore.ErrAbsent {
 		delay := time.Second
 		for {
 			if delay > time.Second {
@@ -152,15 +152,23 @@ func initTlog() (TreeState, error) {
 		return TreeState{}, fmt.Errorf("forwarding to initial latest position: %v", err)
 	}
 
-	// Start processing a bit before the end, so we immediately fetch some packages.
-	n := ntree.N - 1000
-	if n < 0 {
-		n = 0
+	var n int64
+	if resetID > 0 {
+		if resetID > ntree.N {
+			return TreeState{}, fmt.Errorf("tree has %d records, id %d not yet present", ntree.N, n)
+		}
+		n = resetID - 1
+	} else {
+		// Start processing a bit before the end, so we immediately fetch some packages.
+		n = ntree.N - 1000
+		if n < 0 {
+			n = 0
+		}
 	}
 
 	ts := TreeState{ID: 1, RecordsInitial: n, RecordsProcessed: n}
 	err = database.Write(context.Background(), func(tx *bstore.Tx) error {
-		if resetTree {
+		if resetTree || resetID > 0 {
 			if _, err := bstore.QueryTx[ModuleVersion](tx).FilterGreaterEqual("LogRecordID", n).Delete(); err != nil {
 				return fmt.Errorf("removing previously seen module versions during tree reset: %v", err)
 			}
@@ -267,6 +275,17 @@ func forwardProcessLatest(latestBuf []byte) error {
 	return nil
 }
 
+// Known bad module path/versions that we don't want to allow being added to the
+// transparency log.
+var knownBadVersions = []module.Version{
+	// id 70569742 https://sum.golang.org/lookup/go-proxy-svn-audit.34-134-75-159.sslip.io/owned/svnpath35/sub48@v0.0.0-20261101055704-000000000076
+	{Path: "github.com/benr00t3d/go-sumdb-crosskey-canary-r75", Version: "v0.0.75"},
+
+	// id 70602069 https://sum.golang.org/lookup/go-proxy-svn-audit.34-134-75-159.sslip.io/owned/svnpath49/sub63@v0.0.0-20261102001427-000000000111,
+	// id 70614461 https://sum.golang.org/lookup/go-proxy-svn-audit.34-134-75-159.sslip.io/owned/svnpath49/sub63@v0.0.0-20261102053419-000000000113 (same module path/version, different hash)
+	{Path: "github.com/benr00t3d/go-byteman-crosswrite-canary", Version: "v0.0.8"},
+}
+
 func latestModules(latest []byte) (TreeState, tlog.Tree, []module.Version, error) {
 	ntree, _, err := tlogclient.forward(latest)
 	if err != nil {
@@ -342,16 +361,36 @@ func latestModules(latest []byte) (TreeState, tlog.Tree, []module.Version, error
 				if err := module.Check(v.Path, v.Version); err != nil {
 					return ts, tlog.Tree{}, nil, fmt.Errorf("invalid module version %q %q: %v", v.Path, v.Version, err)
 				}
-				if version != zeroversion && version != v {
-					return ts, tlog.Tree{}, nil, fmt.Errorf("multiple modules in record: %s and %s", version, v)
-				}
 				if version == zeroversion {
+					// We refuse to add the module path/version that are present as second module/path
+					// in the known bad records.
+					if slices.Contains(knownBadVersions, version) {
+						metricTlogSecurityErrors.Inc()
+						return ts, tlog.Tree{}, nil, fmt.Errorf("record with known bad module version %q %q", version.Path, version.Version)
+					}
+
 					pseudo := module.IsPseudoVersion(v.Version)
 					ispre := semver.Prerelease(v.Version) != ""
-					slog.Info("new module/version", "module", v.Path, "version", v.Version, "pseudo", pseudo, "prerelease", ispre)
+					slog.Info("new module/version", "module", v.Path, "version", v.Version, "pseudo", pseudo, "prerelease", ispre, "id", id)
 					modversions = append(modversions, v)
+					version = v
+				} else if version != v {
+					// A record should contain a hash for just one module path/version. In the past, 3
+					// known bad records were created containing a second module path/versions:
+					//
+					// id 70569742 https://sum.golang.org/lookup/go-proxy-svn-audit.34-134-75-159.sslip.io/owned/svnpath35/sub48@v0.0.0-20261101055704-000000000076
+					// id 70602069 https://sum.golang.org/lookup/go-proxy-svn-audit.34-134-75-159.sslip.io/owned/svnpath49/sub63@v0.0.0-20261102001427-000000000111
+					// id 70614461 https://sum.golang.org/lookup/go-proxy-svn-audit.34-134-75-159.sslip.io/owned/svnpath49/sub63@v0.0.0-20261102053419-000000000113
+					//
+					// We skip those extra records. We checked earlier if the first module path/version
+					// in the record wasn't known bad.
+					if id == 70569742 || id == 70602069 || id == 70614461 {
+						slog.Warn("skipping known bad record", "id", id)
+						break
+					}
+					metricTlogSecurityErrors.Inc()
+					return ts, tlog.Tree{}, nil, fmt.Errorf("multiple modules in single record %d: %s and %s", id, version, v)
 				}
-				version = v
 			}
 
 			id++

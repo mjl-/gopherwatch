@@ -56,9 +56,8 @@ func (o ops) ReadRemote(path string) (rbuf []byte, rerr error) {
 		slog.Info("ReadRemote done", "path", path, "done", more, "err", rerr)
 	}()
 
-	for !ratelimitSumdb.Add(net.IPv6zero, time.Now(), 1) {
-		slog.Info("waiting for doing another outgoing sumdb request")
-		time.Sleep(time.Second)
+	if !ratelimitSumdb.Add(net.IPv6zero, time.Now(), 1) {
+		time.Sleep(time.Second / 2)
 	}
 
 	metricSumdbRequests.Inc()
